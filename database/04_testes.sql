@@ -1,0 +1,15 @@
+-- ============================================================
+-- SGA - Faculdade do Bug Infinito (FBI)
+-- 04_testes.sql: roteiro de testes obrigatórios
+-- Responsável: Mykael
+-- ============================================================
+
+-- 1. Login com senha incorreta / usuário inexistente -> falha ou vazio
+-- 2. Matrícula em turma lotada -> falha (SQLSTATE 45000)
+-- 3. Matrícula sem pré-requisito -> falha
+-- 4. Matrícula de aluno Trancado -> falha
+-- 5. Nota fora do intervalo (ex.: 11.0) -> falha (CHECK)
+-- 6. Lançar notas (Em Exame) e depois nota de exame -> situação final
+-- 7. Média 9.0 com frequência < 75% -> "Reprovado por Falta"
+-- 8. Alteração de notas -> registros em log_nota
+-- 9. Consulta das 3 views (vw_boletim, vw_turmas_lotacao, vw_desempenho_turma)

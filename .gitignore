@@ -1,0 +1,27 @@
+# Dependências / ambientes
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+bin/
+obj/
+target/
+
+# Configuração local e segredos
+.env
+*.local
+config.local.*
+
+# IDE / SO
+.vscode/
+.idea/
+.vs/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Builds e pacotes
+dist/
+build/
+*.zip
