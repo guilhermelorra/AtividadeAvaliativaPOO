@@ -1,13 +1,13 @@
-# Divisão do Trabalho (proposta inicial)
+# Divisão do Trabalho
 
-> Rascunho para o grupo discutir e ajustar. Cada integrante tem uma branch própria e um checklist em `docs/tarefas/`.
+> Segue o plano de ataque do grupo (26/10). Os combinados (textos exatos, hash de senha, nomes) fecham até 01/11. Cada integrante tem uma branch própria e um checklist em `docs/tarefas/`.
 
 | Integrante | Branch | Responsabilidade principal | Arquivos |
 |------------|--------|----------------------------|----------|
-| **Guilherme** | `guilherme` | Modelagem (MER + modelo lógico), DDL, constraints, índices e massa de dados | `database/01_ddl.sql`, `database/02_dados.sql` |
-| **Diego** | `diego` | Views, functions e triggers | `database/03_programacao.sql` (seções Views / Functions / Triggers) |
-| **Mykael** | `mykael` | Stored procedures e roteiro de testes | `database/03_programacao.sql` (seção Procedures), `database/04_testes.sql` |
-| **Leo** | `leo` | Interface: login, permissões por perfil, telas | `app/` |
+| **Guilherme** | `guilherme` | Modelagem (MER + modelo lógico), DDL, constraints, índices, massa de dados, procedures de cadastro de aluno e telas do Coordenador | `database/01_ddl.sql`, `database/02c_procedures_cadastro.sql`, `database/03_dados.sql`, `app/` (telas do Coordenador) |
+| **Diego** | `diego` | Functions, views e triggers | `database/02a_functions_views_triggers.sql`, `database/SGA_completo.sql` |
+| **Mykael** | `mykael` | Stored procedures e roteiro de testes | `database/02b_procedures.sql`, `database/04_testes.sql` |
+| **Leo** | `leo` | Base da interface (login, menu por perfil) e telas do Secretário | `app/` |
 
 ## Responsabilidades compartilhadas
 
@@ -28,15 +28,18 @@ O DDL é o primeiro gargalo: as demais partes dependem das tabelas. Sugestão: G
 
 ## Evitando conflitos de merge
 
-- `03_programacao.sql` é editado por Diego e Mykael. Cada um fica na sua seção (marcadas com comentários), ou o arquivo pode ser dividido em `03a_views_functions_triggers.sql` e `03b_procedures.sql` se o grupo preferir.
+- O antigo `03_programacao.sql` virou três arquivos, um por dono (`02a`, `02b` e `02c`), então ninguém edita o mesmo arquivo SQL.
 - Fazer `git pull origin main` antes de abrir Pull Request.
+- Merge sempre com **Create a merge commit** (sem squash nem rebase) e sem apagar a branch.
+- Revisão em rodízio: Diego revisa o PR do Guilherme, Mykael o do Diego, Leo o do Mykael e Guilherme o do Leo.
 
-## Marcos sugeridos
+## Marcos
 
 | Marco | Quando |
 |-------|--------|
-| DDL + dados prontos | a combinar |
-| Objetos SQL + testes passando | a combinar |
-| Interface integrada ao banco | a combinar |
-| Relatório e slides finalizados | até 20/11/2026 |
+| PR do `01_ddl.sql` | qui, 29/10/2026 |
+| Combinados do grupo fechados | dom, 01/11/2026 |
+| Tudo integrado e testado | dom, 15/11/2026 |
+| Relatório pronto | sex, 20/11/2026 |
+| Ensaio da apresentação | 21 e 22/11/2026 |
 | **Entrega e apresentação** | **23/11/2026** |

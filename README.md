@@ -14,11 +14,11 @@ O SGA centraliza o controle de turmas, matrículas, notas, frequência, históri
 | Mykael     | `mykael` |
 | Leo        | `leo` |
 
-> A divisão de tarefas em [`docs/DIVISAO_TRABALHO.md`](docs/DIVISAO_TRABALHO.md) é uma **proposta inicial**, a ser fechada pelo grupo.
+> Divisão de tarefas, arquivos de cada um e prazos em [`docs/DIVISAO_TRABALHO.md`](docs/DIVISAO_TRABALHO.md).
 
 ## Tecnologias
 
-- **Banco de dados:** MySQL + MySQL Workbench (8.0 ou superior)
+- **Banco de dados:** MySQL + MySQL Workbench (8.0.16 ou superior: antes disso o MySQL ignora os CHECKs)
 - **Interface:** linguagem a definir pelo grupo (Python, C#, Node.js, Java, C++...). **PHP é proibido.**
 - **Comunicação interface ↔ banco:** somente via **Stored Procedures e Views**. Não pode trafegar SQL "cru" pela rede.
 - **Senhas:** armazenadas com hash (SHA-256 ou BCRYPT). Nunca em texto puro.
@@ -33,10 +33,12 @@ O SGA centraliza o controle de turmas, matrículas, notas, frequência, históri
 │   ├── DIVISAO_TRABALHO.md    # Proposta de divisão entre os 4 integrantes
 │   └── tarefas/               # Checklist individual (cada um na sua branch)
 ├── database/
-│   ├── 01_ddl.sql             # Tabelas, índices e constraints
-│   ├── 02_dados.sql           # Massa de dados (inclui usuários com senha em hash)
-│   ├── 03_programacao.sql     # Views, functions, procedures e triggers
-│   └── 04_testes.sql          # Roteiro de testes obrigatórios
+│   ├── 01_ddl.sql                       # Banco, tabelas, índices e constraints (Guilherme)
+│   ├── 02a_functions_views_triggers.sql # Functions, views e triggers (Diego)
+│   ├── 02b_procedures.sql               # As 6 procedures do enunciado (Mykael)
+│   ├── 02c_procedures_cadastro.sql      # Cadastro de aluno + vw_alunos (Guilherme)
+│   ├── 03_dados.sql                     # Massa de dados, com os triggers já ativos (Guilherme)
+│   └── 04_testes.sql                    # Roteiro de testes obrigatórios (Mykael)
 ├── app/                       # Código-fonte da interface (login + permissões por perfil)
 ├── relatorio/                 # Relatório técnico (.pdf) e diagramas MER / lógico
 └── apresentacao/              # Slides da apresentação oral
@@ -45,7 +47,9 @@ O SGA centraliza o controle de turmas, matrículas, notas, frequência, históri
 ## Como rodar o banco
 
 1. Abra o MySQL Workbench e conecte na sua instância local.
-2. Execute, **nesta ordem**: `01_ddl.sql` → `02_dados.sql` → `03_programacao.sql` → `04_testes.sql`.
+2. Execute, **nesta ordem**: `01_ddl.sql` → `02a_functions_views_triggers.sql` → `02b_procedures.sql` → `02c_procedures_cadastro.sql` → `03_dados.sql` → `04_testes.sql`.
+
+O `01_ddl.sql` apaga e recria o banco `sga_fbi`, então dá para rodar tudo de novo do zero quantas vezes quiser. Os dados rodam depois da programação para o `trg_valida_vagas` já validar a massa. Na entrega, o Diego junta tudo nessa ordem no `SGA_completo.sql`.
 
 ## Como rodar a interface
 
