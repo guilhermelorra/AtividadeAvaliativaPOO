@@ -1,28 +1,23 @@
 -- ============================================================
 -- SGA - Faculdade do Bug Infinito (FBI)
--- 03_programacao.sql: views, functions, procedures e triggers
+-- 02a_functions_views_triggers.sql: functions, views e triggers
+-- Responsável: Diego
 -- ============================================================
+-- Nessa ordem: as views usam as functions.
 
 -- ------------------------------------------------------------
--- FUNCTIONS (Diego)
+-- FUNCTIONS
 -- fn_calcular_media, fn_frequencia, fn_situacao, fn_cr_aluno (opcional)
 -- ------------------------------------------------------------
 
 
 -- ------------------------------------------------------------
--- VIEWS (Diego)
--- vw_boletim, vw_turmas_lotacao, vw_desempenho_turma
+-- VIEWS
+-- vw_boletim, vw_turmas_lotacao, vw_desempenho_turma, vw_faturamento_curso
 -- ------------------------------------------------------------
 
 
 -- ------------------------------------------------------------
--- TRIGGERS (Diego)
+-- TRIGGERS
 -- trg_valida_vagas, trg_auditoria_nota, trg_atualiza_situacao
--- ------------------------------------------------------------
-
-
--- ------------------------------------------------------------
--- STORED PROCEDURES (Mykael)
--- sp_LoginUsuario, sp_matricular_aluno, sp_lancar_notas,
--- sp_lancar_exame, sp_historico_aluno, sp_fechar_semestre
 -- ------------------------------------------------------------

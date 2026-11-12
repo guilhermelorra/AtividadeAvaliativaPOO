@@ -1,8 +1,10 @@
 -- ============================================================
 -- SGA - Faculdade do Bug Infinito (FBI)
--- 02_dados.sql: massa de dados de exemplo
+-- 03_dados.sql: massa de dados de exemplo
 -- Responsável: Guilherme
 -- ============================================================
+-- Roda DEPOIS da programação (02a, 02b, 02c), com os triggers
+-- ativos: se o trg_valida_vagas reclamar, a massa está errada.
 
 -- Mínimo exigido:
 --   5 usuários (2 Coordenadores + 3 Secretários, senhas em hash)
