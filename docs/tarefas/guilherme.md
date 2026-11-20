@@ -5,7 +5,7 @@ Branch: `guilherme` · Arquitetura do banco + telas do Coordenador (ver `docs/DI
 Arquivos: `database/01_ddl.sql`, `database/02c_procedures_cadastro.sql`, `database/03_dados.sql`, `app/` (telas do Coordenador), `relatorio/`.
 
 ## S1 · Banco de pé (até 01/11)
-- [ ] Adicionar Diego, Mykael e Leo no repo (Settings → Collaborators)
+- [x] Adicionar Diego, Mykael e Leo no repo (Settings → Collaborators)
 - [ ] Proteger a `main` (Settings → Branches: exigir PR com 1 aprovação)
 - [x] MER e modelo lógico (`relatorio/modelo_dados.md`)
 - [ ] Exportar o EER Diagram do Workbench para `relatorio/img/`
@@ -14,10 +14,10 @@ Arquivos: `database/01_ddl.sql`, `database/02c_procedures_cadastro.sql`, `databa
 - [x] PR do DDL até quinta, 29/10
 
 ## S2 · Dados e cadastro (até 08/11)
-- [ ] `02c`: `sp_cadastrar_aluno`, `sp_editar_aluno`, `sp_excluir_aluno` + `vw_alunos`
-- [ ] `03_dados.sql`: 5 usuários (2 Coord. + 3 Secr.), 3 cursos, 6 disciplinas, 5 professores, 20 alunos, 5 turmas, 35 matrículas
-- [ ] Cenários de teste do Mykael (turma lotada, pré-requisito, Trancado/Formado, Em Exame, média ≥ 9 com faltas > 25%), em 2026.1 encerrado e 2026.2 aberto
-- [ ] Comentário no topo do `03_dados.sql` com logins/senhas de teste e IDs dos cenários
+- [x] `02c`: `sp_cadastrar_aluno`, `sp_editar_aluno`, `sp_excluir_aluno` + `vw_alunos`
+- [x] `03_dados.sql`: 5 usuários (2 Coord. + 3 Secr.), 3 cursos, 6 disciplinas, 5 professores, 20 alunos, 5 turmas, 35 matrículas
+- [x] Cenários de teste do Mykael (turma lotada, pré-requisito, Trancado/Formado, Em Exame, média ≥ 9 com faltas > 25%), em 2026.1 encerrado e 2026.2 aberto
+- [x] Comentário no topo do `03_dados.sql` com logins/senhas de teste e IDs dos cenários
 
 ## S3 · Telas do Coordenador (até 15/11)
 - [ ] Lançar notas e exame
