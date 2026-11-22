@@ -1,0 +1,788 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SGA, Sistema de Gestão Acadêmica</title>
+<style>
+:root {
+  --escuro: #0b3c49; --escuro2: #12303a; --texto: #1f2a30; --suave: #5b6b73; --cartao: #eef4f5;
+  --borda: #d5e0e3; --dest: #f2a541; --verde: #1f7a3e; --verm: #b91c1c; --azul: #2563eb; --laranja: #b45309;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #0a1d24; overflow: hidden; }
+body { font-family: "Segoe UI", system-ui, -apple-system, Arial, sans-serif; color: var(--texto); }
+#stage { position: absolute; left: 50%; top: 50%; width: 1280px; height: 720px; transform-origin: 0 0; background: #fff; overflow: hidden; }
+.slide { position: absolute; inset: 0; padding: 36px 56px 56px; opacity: 0; pointer-events: none; transform: translateX(40px); transition: opacity .35s ease, transform .35s ease; }
+.slide.ativo { opacity: 1; pointer-events: auto; transform: none; }
+.slide.saiu { transform: translateX(-40px); }
+.slide.escuro { background: var(--escuro); color: #fff; }
+h1 { margin: 0; font-size: 38px; line-height: 1.1; color: var(--escuro); font-weight: 700; letter-spacing: -.5px; }
+.escuro h1 { color: #fff; }
+.topo { display: flex; justify-content: space-between; align-items: center; margin-bottom: 22px; min-height: 48px; }
+.tag { font-family: Consolas, "Courier New", monospace; font-weight: 700; font-size: 15px; background: var(--escuro); color: #fff; padding: 6px 18px; border-radius: 10px; }
+.tag.dest { background: var(--dest); color: var(--escuro); }
+.rodape { position: absolute; left: 56px; bottom: 18px; font-size: 13px; color: var(--suave); }
+.cartao { background: var(--cartao); border-radius: 12px; padding: 16px 20px; }
+.mono { font-family: Consolas, "Courier New", monospace; }
+.suave { color: var(--suave); }
+p { margin: 0 0 10px; }
+ul { margin: 0; padding-left: 22px; } li { margin-bottom: 7px; }
+button { font: inherit; cursor: pointer; }
+.btn { border: 0; background: var(--escuro); color: #fff; padding: 9px 18px; border-radius: 10px; font-weight: 600; font-size: 15px; transition: transform .1s, background .2s; }
+.btn:hover { background: #0e5266; } .btn:active { transform: scale(.97); }
+.btn.sec { background: #fff; color: var(--escuro); border: 1.5px solid var(--escuro); }
+.btn.dest { background: var(--dest); color: var(--escuro); }
+kbd { background: #e5eef0; border-radius: 5px; padding: 1px 7px; font-size: .85em; border: 1px solid #c8d7db; }
+
+/* capa e divisorias */
+.capa { display: flex; flex-direction: column; justify-content: center; height: 100%; }
+.capa .marca { font-size: 120px; font-weight: 800; line-height: 1; letter-spacing: -3px; }
+.capa .sub { font-size: 34px; color: #cfe3e8; margin: 8px 0 26px; }
+.capa .nomes { color: var(--dest); font-weight: 700; font-size: 24px; margin-top: 46px; }
+.divisoria { display: flex; flex-direction: column; justify-content: center; height: 100%; }
+.divisoria .nome { font-size: 84px; font-weight: 800; letter-spacing: -2px; margin: 18px 0 6px; }
+.divisoria .frase { font-size: 30px; color: #cfe3e8; }
+
+/* camadas (slide 2) */
+.camadas { display: flex; flex-direction: column; gap: 14px; margin-top: 8px; }
+.camada { display: grid; grid-template-columns: 250px 1fr; align-items: center; gap: 18px; background: var(--cartao); border-radius: 14px; padding: 20px 26px; font-size: 20px; transition: transform .2s, background .2s, box-shadow .2s; cursor: default; }
+.camada b { font-size: 22px; color: var(--escuro); }
+.camada:hover, .camada.sel { background: var(--escuro); color: #fff; transform: translateX(10px); box-shadow: 0 8px 22px rgba(11,60,73,.3); }
+.camada:hover b, .camada.sel b { color: var(--dest); }
+
+/* divisao do trabalho */
+.pessoas { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-top: 10px; }
+.pessoa { background: var(--cartao); border-radius: 16px; padding: 22px 20px; min-height: 290px; transition: transform .2s, box-shadow .2s; }
+.pessoa:hover { transform: translateY(-8px); box-shadow: 0 14px 26px rgba(11,60,73,.22); }
+.pessoa h3 { margin: 0 0 12px; font-size: 28px; color: var(--escuro); }
+.pessoa p { font-size: 17px; color: var(--texto); margin-top: 16px; }
+
+/* diagrama */
+.er-wrap { display: grid; grid-template-columns: 1fr 330px; gap: 18px; height: 560px; }
+.er-area { position: relative; border: 1.5px solid var(--borda); border-radius: 14px; overflow: hidden; background: #fbfdfd; }
+.er-bar { position: absolute; left: 12px; top: 10px; right: 12px; z-index: 2; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.er-bar .btn { padding: 7px 14px; font-size: 14px; }
+.er-dica { font-size: 13px; color: var(--suave); margin-left: 6px; }
+#er { width: 100%; height: 100%; display: block; padding-top: 44px; }
+#er .tbl { cursor: pointer; transition: opacity .3s; }
+#er .tbl .frame { fill: #fff; stroke: #0f172a; stroke-width: 1.6; transition: stroke .2s, stroke-width .2s, filter .2s; }
+#er .tbl .head { fill: #0f172a; transition: fill .2s; }
+#er .tbl .title { fill: #fff; font-size: 15px; font-weight: 700; }
+#er .tbl .zebra { fill: #f8fafc; }
+#er .tbl .col { fill: #0f172a; font-size: 13px; } #er .tbl .pkc { font-weight: 700; }
+#er .tbl .tipo { fill: #64748b; font-size: 10px; }
+#er .tbl .key { font-size: 10px; font-weight: 700; } .key.pk { fill: #b45309; } .key.fk { fill: #1d4ed8; } .key.uk { fill: #64748b; }
+#er .tbl:hover .frame, #er .tbl:focus .frame { stroke: var(--dest); stroke-width: 3; filter: drop-shadow(0 4px 10px rgba(242,165,65,.55)); }
+#er .tbl:hover .head, #er .tbl:focus .head { fill: #0b3c49; }
+#er .tbl:focus { outline: none; }
+#er .rel { cursor: pointer; transition: opacity .3s; }
+#er .rel .hit { fill: none; stroke: transparent; stroke-width: 16; }
+#er .rel .line { fill: none; stroke: #64748b; stroke-width: 1.6; transition: stroke .2s, stroke-width .2s; }
+#er .rel .rlabel { font-size: 11px; fill: #475569; font-style: italic; paint-order: stroke; stroke: #fbfdfd; stroke-width: 4px; }
+#er .rel .card { font-size: 12px; font-weight: 700; fill: #1d4ed8; paint-order: stroke; stroke: #fbfdfd; stroke-width: 4px; }
+#er .rel:hover .line { stroke: var(--dest); stroke-width: 3; }
+#er.tem-foco .tbl:not(.foco):not(.vizinha) { opacity: .2; }
+#er.tem-foco .rel:not(.on) { opacity: .1; }
+#er .rel.on .line { stroke: var(--dest); stroke-width: 4; }
+#er .rel.on .rlabel { fill: #7c4a03; font-size: 13px; font-weight: 700; }
+#er .tbl.foco .frame { stroke: var(--dest); stroke-width: 3.5; filter: drop-shadow(0 6px 14px rgba(242,165,65,.6)); }
+#er .rel.pulsa .line { animation: pulsa 1.1s ease-in-out infinite; }
+@keyframes pulsa { 50% { stroke-width: 7; } }
+.painel { background: var(--cartao); border-radius: 14px; padding: 18px 20px; overflow: auto; font-size: 15px; }
+.painel h3 { margin: 0 0 6px; font-size: 24px; color: var(--escuro); font-family: Consolas, monospace; }
+.painel .desc { font-size: 15px; color: var(--texto); }
+.painel h4 { margin: 14px 0 6px; font-size: 12px; letter-spacing: .12em; color: var(--suave); text-transform: uppercase; }
+.cols { list-style: none; padding: 0; font-family: Consolas, monospace; font-size: 13px; }
+.cols li { display: flex; gap: 8px; align-items: baseline; margin: 0; padding: 3px 0; border-bottom: 1px dashed #cfdde0; }
+.cols .k { width: 44px; font-weight: 700; font-size: 11px; } .cols .k.pk { color: #b45309; } .cols .k.fk { color: #1d4ed8; } .cols .k.uk { color: #64748b; }
+.cols .t { margin-left: auto; color: #64748b; font-size: 11px; }
+.rels { display: flex; flex-direction: column; gap: 6px; }
+.rels button { text-align: left; background: #fff; border: 1.5px solid var(--borda); border-radius: 9px; padding: 7px 10px; font-size: 13px; color: var(--texto); transition: border-color .15s, transform .15s; }
+.rels button:hover { border-color: var(--dest); transform: translateX(4px); }
+.passo { font-size: 13px; color: var(--laranja); font-weight: 700; letter-spacing: .08em; margin-bottom: 4px; }
+.explica { font-size: 17px; line-height: 1.4; }
+
+/* 3FN */
+.fn-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 6px; }
+.fn { background: var(--cartao); border-radius: 16px; padding: 22px; cursor: pointer; transition: transform .2s, background .2s; min-height: 200px; border: 2px solid transparent; }
+.fn:hover { transform: translateY(-6px); } .fn.aberto { background: #fff; border-color: var(--dest); box-shadow: 0 10px 24px rgba(242,165,65,.28); }
+.fn .n { font-size: 54px; font-weight: 800; color: var(--escuro); line-height: 1; } .fn h3 { margin: 6px 0 8px; font-size: 22px; }
+.fn .det { font-size: 16px; display: none; } .fn.aberto .det { display: block; } .fn .res { font-size: 16px; color: var(--suave); } .fn.aberto .res { display: none; }
+.redund { margin-top: 18px; background: #fff7e8; border: 1.5px solid var(--dest); border-radius: 14px; padding: 16px 22px; font-size: 18px; }
+
+/* prints */
+.abas { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.aba { border: 1.5px solid var(--escuro); background: #fff; color: var(--escuro); padding: 7px 16px; border-radius: 999px; font-weight: 600; font-size: 15px; }
+.aba.ativa { background: var(--escuro); color: #fff; }
+.print-box { height: 440px; display: flex; justify-content: center; align-items: center; background: #eef4f5; border-radius: 14px; overflow: hidden; }
+.print-box img { max-width: 100%; max-height: 100%; border-radius: 6px; box-shadow: 0 6px 20px rgba(0,0,0,.2); cursor: zoom-in; }
+.legenda { font-size: 16px; color: var(--suave); margin-top: 10px; }
+
+/* contadores (slide 9) */
+.contadores { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin: 4px 0 22px; }
+.cont { background: var(--cartao); border-radius: 16px; padding: 20px 24px; transition: transform .2s; } .cont:hover { transform: translateY(-6px); }
+.cont .n { font-size: 84px; font-weight: 800; color: var(--escuro); line-height: 1; } .cont .l { font-family: Consolas, monospace; font-size: 24px; font-weight: 700; color: var(--escuro); } .cont .d { font-size: 16px; color: var(--suave); margin-top: 6px; }
+
+/* simulador */
+.sim { display: grid; grid-template-columns: 470px 1fr; gap: 22px; }
+.ctl { background: var(--cartao); border-radius: 14px; padding: 16px 20px; }
+.ctl .linha { display: grid; grid-template-columns: 100px 1fr 54px; align-items: center; gap: 10px; margin: 9px 0; font-size: 16px; }
+.ctl input[type=range] { width: 100%; accent-color: var(--escuro); }
+.ctl .val { font-family: Consolas, monospace; font-weight: 700; text-align: right; }
+.ctl label.chk { display: flex; gap: 8px; align-items: center; font-size: 15px; margin: 6px 0; }
+.presets { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; } .presets .btn { padding: 6px 12px; font-size: 13px; }
+.res-sim { display: flex; flex-direction: column; gap: 12px; }
+.numeros { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.num { background: var(--cartao); border-radius: 12px; padding: 12px 16px; } .num .l { font-size: 13px; color: var(--suave); } .num .v { font-size: 30px; font-weight: 800; font-family: Consolas, monospace; color: var(--escuro); }
+.badge { display: inline-block; font-size: 34px; font-weight: 800; padding: 12px 26px; border-radius: 14px; color: #fff; transition: background .25s; align-self: flex-start; }
+.regras { list-style: none; padding: 0; counter-reset: r; }
+.regras li { padding: 7px 12px; border-radius: 8px; font-size: 15px; margin: 3px 0; color: #6b7c83; transition: background .2s, color .2s; }
+.regras li.vale { background: #fff3d6; color: #5a3600; font-weight: 700; } .regras li.pulou { text-decoration: line-through; opacity: .5; }
+
+/* views / cards */
+.grid2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.obj { background: var(--cartao); border-radius: 14px; padding: 18px 22px; transition: transform .2s, box-shadow .2s; } .obj:hover { transform: translateY(-5px); box-shadow: 0 10px 22px rgba(11,60,73,.18); }
+.obj .nome { font-family: Consolas, monospace; font-weight: 700; font-size: 20px; color: var(--escuro); } .obj .t { float: right; background: var(--dest); color: var(--escuro); font-family: Consolas, monospace; font-weight: 700; font-size: 13px; padding: 3px 10px; border-radius: 8px; } .obj p { margin: 10px 0 0; font-size: 16px; }
+
+/* fluxo de triggers */
+.fluxo { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 8px 0 16px; }
+.etapa { background: var(--cartao); border-radius: 14px; padding: 16px 18px; min-height: 210px; opacity: .35; transform: scale(.97); transition: all .35s; border: 2px solid transparent; position: relative; }
+.etapa.on { opacity: 1; transform: none; background: #fff; border-color: var(--dest); box-shadow: 0 10px 24px rgba(242,165,65,.3); }
+.etapa .n { position: absolute; right: 14px; top: 8px; font-size: 40px; font-weight: 800; color: #cdd9dc; } .etapa.on .n { color: var(--dest); }
+.etapa .nome { font-family: Consolas, monospace; font-weight: 700; font-size: 17px; color: var(--escuro); margin-bottom: 8px; padding-right: 36px; } .etapa p { font-size: 15px; }
+.etapa code { background: #e8f0f2; padding: 1px 6px; border-radius: 5px; font-size: 13px; }
+
+/* flip cards */
+.flips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.flip { perspective: 900px; height: 430px; cursor: pointer; }
+.flip .in { position: relative; width: 100%; height: 100%; transition: transform .6s; transform-style: preserve-3d; }
+.flip.virou .in { transform: rotateY(180deg); }
+.flip .f, .flip .b { position: absolute; inset: 0; backface-visibility: hidden; border-radius: 16px; padding: 24px; }
+.flip .f { background: var(--cartao); } .flip .b { background: var(--escuro); color: #fff; transform: rotateY(180deg); }
+.flip h3 { margin: 0 0 14px; font-size: 24px; color: var(--escuro); } .flip .b h3 { color: var(--dest); }
+.flip .rot { font-size: 12px; letter-spacing: .14em; font-weight: 700; color: var(--suave); } .flip .b .rot { color: #9fc2cc; }
+.flip p { font-size: 17px; margin-top: 6px; } .flip .toque { position: absolute; bottom: 16px; left: 24px; font-size: 13px; color: var(--suave); } .flip .b .toque { color: #9fc2cc; }
+code.i { background: #e8f0f2; padding: 1px 6px; border-radius: 5px; font-size: .9em; } .b code.i { background: #1a5666; color: #fff; }
+
+/* procedures */
+.proc { display: grid; grid-template-columns: 1fr 440px; gap: 18px; }
+.lista { display: flex; flex-direction: column; gap: 8px; }
+.lista button { text-align: left; background: var(--cartao); border: 2px solid transparent; border-radius: 12px; padding: 12px 18px; font-size: 16px; color: var(--texto); transition: all .15s; }
+.lista button b { font-family: Consolas, monospace; color: var(--escuro); font-size: 17px; display: block; }
+.lista button:hover { transform: translateX(6px); } .lista button.sel { background: #fff; border-color: var(--dest); box-shadow: 0 6px 16px rgba(242,165,65,.28); }
+.detalhe { background: var(--escuro2); color: #fff; border-radius: 16px; padding: 22px 24px; font-size: 16px; }
+.detalhe h3 { margin: 0 0 10px; font-family: Consolas, monospace; color: var(--dest); font-size: 20px; }
+.detalhe .rot { font-size: 12px; letter-spacing: .12em; color: #9fc2cc; margin: 14px 0 4px; font-weight: 700; }
+.erro-ex { background: #3b0f12; color: #ffd0d0; border-left: 4px solid #ef4444; border-radius: 8px; padding: 10px 14px; font-family: Consolas, monospace; font-size: 14px; }
+
+/* testes */
+.testes { display: grid; grid-template-columns: 430px 1fr; gap: 20px; }
+.grande { font-size: 120px; font-weight: 800; color: var(--verde); line-height: 1; font-variant-numeric: tabular-nums; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.chip { border: 1.5px solid var(--escuro); background: #fff; color: var(--escuro); border-radius: 999px; padding: 6px 14px; font-size: 14px; font-weight: 600; transition: all .15s; }
+.chip:hover { background: #eef4f5; } .chip.sel { background: var(--escuro); color: #fff; }
+.result { background: var(--cartao); border-radius: 14px; padding: 18px 22px; min-height: 270px; font-size: 16px; }
+.result .ok { display: inline-block; background: var(--verde); color: #fff; font-weight: 800; border-radius: 8px; padding: 2px 12px; font-size: 14px; }
+.result .rot { font-size: 12px; letter-spacing: .12em; color: var(--suave); font-weight: 700; margin: 14px 0 4px; }
+
+/* classes */
+.dois { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+table.t { width: 100%; border-collapse: collapse; font-size: 16px; } table.t th { background: var(--escuro); color: #fff; text-align: left; padding: 9px 14px; } table.t td { padding: 9px 14px; border-bottom: 1px solid var(--borda); } table.t td:first-child { font-family: Consolas, monospace; font-weight: 700; color: var(--escuro); }
+table.t tr { transition: background .15s; } table.t tbody tr:hover { background: #fff3d6; }
+
+/* perfis */
+.perfis { display: grid; grid-template-columns: 330px 1fr; gap: 22px; }
+.seg { display: flex; gap: 0; margin-bottom: 14px; } .seg button { flex: 1; padding: 11px; border: 2px solid var(--escuro); background: #fff; font-weight: 700; font-size: 17px; color: var(--escuro); }
+.seg button:first-child { border-radius: 12px 0 0 12px; } .seg button:last-child { border-radius: 0 12px 12px 0; border-left: 0; } .seg button.ativo { background: var(--escuro); color: #fff; }
+.menu-sim { background: var(--escuro); border-radius: 14px; padding: 12px 12px 10px; color: #e2e8f0; }
+.menu-sim .u { background: #1e293b; border-radius: 10px; padding: 8px 14px; margin-bottom: 4px; } .menu-sim .u b { color: #fff; display: block; } .menu-sim .u span { font-size: 11px; font-weight: 700; letter-spacing: .08em; }
+.menu-sim .sec { font-size: 11px; color: #64748b; font-weight: 700; margin: 7px 8px 1px; letter-spacing: .06em; }
+.menu-sim .it { padding: 4px 12px; border-radius: 8px; font-size: 14px; transition: all .35s; max-height: 30px; overflow: hidden; }
+.menu-sim .it.some { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; }
+.menu-sim .it.novo { background: rgba(242,165,65,.18); color: #ffd9a0; }
+.caixa-erro { margin-top: 14px; border-radius: 12px; padding: 14px 18px; font-size: 17px; min-height: 64px; }
+.caixa-erro.vazia { background: var(--cartao); color: var(--suave); } .caixa-erro.erro { background: #fde8e8; color: #7f1d1d; border-left: 5px solid #ef4444; } .caixa-erro.info { background: #fff7e8; color: #5a3600; border-left: 5px solid var(--dest); }
+.camadas2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; } .camadas2 div { background: var(--cartao); border-radius: 12px; padding: 12px 16px; font-size: 15px; } .camadas2 b { color: var(--escuro); display: block; margin-bottom: 4px; }
+
+/* roteiro */
+.passos { display: flex; flex-direction: column; gap: 8px; }
+.pass { display: grid; grid-template-columns: 44px 190px 1fr; gap: 14px; align-items: center; background: var(--cartao); border-radius: 12px; padding: 10px 16px; cursor: pointer; font-size: 17px; transition: all .2s; border: 2px solid transparent; }
+.pass:hover { border-color: var(--dest); } .pass .nn { font-size: 26px; font-weight: 800; color: var(--escuro); text-align: center; } .pass .q { font-family: Consolas, monospace; font-weight: 700; color: var(--escuro); font-size: 15px; }
+.pass.feito { opacity: .45; } .pass.feito .nn::after { content: " ✓"; color: var(--verde); font-size: 20px; } .pass.feito .o { text-decoration: line-through; }
+
+/* chrome da apresentacao */
+#barra { position: fixed; left: 0; bottom: 0; height: 4px; background: var(--dest); transition: width .3s; z-index: 50; }
+#contador { position: fixed; right: 14px; bottom: 10px; color: #9fb7bd; font-size: 13px; z-index: 50; font-family: Consolas, monospace; }
+#ajuda-btn { position: fixed; right: 92px; bottom: 8px; z-index: 50; background: transparent; border: 0; color: #9fb7bd; font-size: 13px; }
+.overlay { position: fixed; inset: 0; background: rgba(5,18,23,.94); z-index: 100; display: none; color: #fff; padding: 40px 60px; overflow: auto; }
+.overlay.aberto { display: block; }
+.overlay h2 { margin: 0 0 18px; font-size: 28px; } .overlay .grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.overlay .grade button { text-align: left; background: #12303a; color: #fff; border: 1.5px solid #1f5362; border-radius: 12px; padding: 14px 16px; font-size: 15px; } .overlay .grade button:hover, .overlay .grade button.atual { border-color: var(--dest); }
+.overlay .grade small { color: #7fa3ad; display: block; margin-bottom: 4px; font-family: Consolas, monospace; }
+#zoom { cursor: zoom-out; align-items: center; justify-content: center; padding: 20px; } #zoom.aberto { display: flex; } #zoom img { max-width: 100%; max-height: 100%; border-radius: 8px; }
+.teclas td { padding: 6px 18px 6px 0; font-size: 18px; }
+</style>
+</head>
+<body>
+<div id="stage">
+
+<!-- 1 ABERTURA -->
+<section class="slide escuro" data-titulo="Abertura">
+  <div class="capa">
+    <span class="tag dest" style="align-self:flex-start">USE sga_fbi;</span>
+    <div class="marca">SGA</div>
+    <div class="sub">Sistema de Gestão Acadêmica</div>
+    <div style="font-size:22px;color:#cfe3e8">Trabalho Prático Integrado · Laboratório de Banco de Dados · 23/11/2026</div>
+    <div class="nomes">Guilherme · Diego · Mykael · Leo</div>
+  </div>
+</section>
+
+<!-- 2 REGRAS NO BANCO -->
+<section class="slide" data-titulo="As regras ficam no banco">
+  <div class="topo"><h1>As regras ficam no banco, não na tela</h1></div>
+  <div class="camadas">
+    <div class="camada"><b>Interface</b><span>Login, menu por perfil e telas. Só faz <span class="mono">CALL</span> em procedure e <span class="mono">SELECT</span> em view.</span></div>
+    <div class="camada"><b>Procedures</b><span>A porta de entrada: login com hash, matrícula, notas, exame e fechamento.</span></div>
+    <div class="camada"><b>Functions, views e triggers</b><span>Média, frequência, situação, vagas e auditoria, calculadas pelo banco.</span></div>
+    <div class="camada"><b>Tabelas</b><span>9 tabelas na 3FN, com PK, FK, UNIQUE e CHECK garantindo os dados.</span></div>
+  </div>
+  <div class="rodape">Passe o mouse em cada camada. Quem calcula é sempre o banco: a tela só mostra.</div>
+</section>
+
+<!-- 3 DIVISAO -->
+<section class="slide" data-titulo="Divisão do trabalho">
+  <div class="topo"><h1>Divisão do trabalho: uma branch por pessoa</h1></div>
+  <div class="pessoas">
+    <div class="pessoa"><h3>Guilherme</h3><span class="tag">guilherme</span><p>Modelagem, DDL, massa de dados, cadastro de aluno e telas do Coordenador.</p></div>
+    <div class="pessoa"><h3>Diego</h3><span class="tag">diego</span><p>Functions, views e triggers, o script final e os slides.</p></div>
+    <div class="pessoa"><h3>Mykael</h3><span class="tag">mykael</span><p>As 6 stored procedures e o roteiro de testes.</p></div>
+    <div class="pessoa"><h3>Leo</h3><span class="tag">leo</span><p>Base do app, login, menu por perfil e telas do Secretário.</p></div>
+  </div>
+  <p class="suave" style="margin-top:22px;font-size:18px">A <span class="mono">main</span> só recebe código por Pull Request revisado por um colega.</p>
+</section>
+
+<!-- 4 DIVISORIA GUILHERME -->
+<section class="slide escuro" data-titulo="Guilherme">
+  <div class="divisoria"><span class="tag dest" style="align-self:flex-start">branch: guilherme</span><div class="nome">Guilherme</div><div class="frase">Arquitetura do banco e telas do Coordenador</div></div>
+</section>
+
+<!-- 5 MODELO INTERATIVO -->
+<section class="slide" data-titulo="Modelo de dados" id="s-er">
+  <div class="topo"><h1>As 9 tabelas e suas relações</h1><span class="tag">guilherme</span></div>
+  <div class="er-wrap">
+    <div class="er-area">
+      <div class="er-bar">
+        <button class="btn" id="er-guiado">▶ Explicar as relações</button>
+        <button class="btn sec" id="er-reset">Visão geral</button>
+        <span class="er-dica">Passe o mouse nas tabelas e clique para dar zoom</span>
+      </div>
+      {{ER_SVG}}
+    </div>
+    <div class="painel" id="er-painel"></div>
+  </div>
+</section>
+
+<!-- 6 3FN -->
+<section class="slide" data-titulo="3FN">
+  <div class="topo"><h1>Normalizado até a 3FN</h1><span class="tag">guilherme</span></div>
+  <div class="fn-grid">
+    <div class="fn"><div class="n">1FN</div><h3>Valores atômicos</h3><p class="res">Sem listas dentro de um campo.</p><div class="det"><ul><li>Notas em colunas próprias (<span class="mono">n1</span>, <span class="mono">n2</span>, <span class="mono">exame</span>).</li><li>Pré-requisitos viraram a tabela <span class="mono">pre_requisito</span>.</li><li>Aluno × turma virou <span class="mono">matricula</span>.</li></ul></div></div>
+    <div class="fn"><div class="n">2FN</div><h3>Sem dependência parcial</h3><p class="res">Nada depende de só parte da chave.</p><div class="det"><ul><li>8 das 9 tabelas têm chave simples.</li><li>A única composta (<span class="mono">pre_requisito</span>) não tem outras colunas.</li><li>Em <span class="mono">matricula</span> tudo depende do aluno naquela turma.</li></ul></div></div>
+    <div class="fn"><div class="n">3FN</div><h3>Sem dependência transitiva</h3><p class="res">Cada dado mora em um lugar só.</p><div class="det"><ul><li>Mensalidade depende do curso, então fica em <span class="mono">curso</span>.</li><li>Nome do professor fica em <span class="mono">professor</span>, e a turma só aponta para ele.</li><li>O faturamento é uma view.</li></ul></div></div>
+  </div>
+  <div class="redund"><b>A única redundância, de propósito:</b> <span class="mono">media_final</span> e <span class="mono">situacao</span> são derivadas das notas, mas os triggers recalculam a cada <span class="mono">INSERT</span> e <span class="mono">UPDATE</span>, então nunca divergem.</div>
+  <div class="rodape">Clique em cada cartão para abrir.</div>
+</section>
+
+<!-- 7 TELAS DO COORDENADOR -->
+<section class="slide" data-titulo="Telas do Coordenador" id="s-telas">
+  <div class="topo"><h1>Telas do Coordenador</h1><span class="tag">guilherme</span></div>
+  <div class="abas" id="telas-abas">
+    <button class="aba ativa" data-i="0">Início</button><button class="aba" data-i="1">Notas e exame</button><button class="aba" data-i="2">Auditoria</button><button class="aba" data-i="3">Relatórios</button>
+  </div>
+  <div class="print-box"><img id="telas-img" class="zoomable" alt="Tela da aplicação" src="{{IMG:29_coord_inicio}}"></div>
+  <div class="legenda" id="telas-leg"></div>
+  <div style="display:none">
+    <img data-t="0" src="{{IMG:29_coord_inicio}}"><img data-t="1" src="{{IMG:36_coord_notas_apos_exame}}"><img data-t="2" src="{{IMG:38_coord_auditoria}}"><img data-t="3" src="{{IMG:42_coord_rel_faturamento}}">
+  </div>
+</section>
+
+<!-- 8 DIVISORIA DIEGO -->
+<section class="slide escuro" data-titulo="Diego">
+  <div class="divisoria"><span class="tag dest" style="align-self:flex-start">branch: diego</span><div class="nome">Diego</div><div class="frase">Regras de negócio dentro do banco</div></div>
+</section>
+
+<!-- 9 RNs -->
+<section class="slide" data-titulo="As RNs viraram objetos">
+  <div class="topo"><h1>As RNs viraram objetos do banco</h1><span class="tag">diego</span></div>
+  <div class="contadores">
+    <div class="cont"><div class="n" data-alvo="6">0</div><div class="l">functions</div><div class="d">4 do enunciado (com o CR opcional) e 2 auxiliares</div></div>
+    <div class="cont"><div class="n" data-alvo="4">0</div><div class="l">views</div><div class="d">3 do enunciado e o faturamento por curso</div></div>
+    <div class="cont"><div class="n" data-alvo="4">0</div><div class="l">triggers</div><div class="d">3 do enunciado e 1 extra na inserção</div></div>
+  </div>
+  <p style="font-size:20px">Quem lança nota só grava N1, N2, exame e faltas. Média, situação, controle de vagas e auditoria saem do banco, então valem para qualquer tela e qualquer procedure.</p>
+</section>
+
+<!-- 10 SIMULADOR -->
+<section class="slide" data-titulo="Simulador da situação" id="s-sim">
+  <div class="topo"><h1>A função que decide a situação</h1><span class="tag">diego</span></div>
+  <div class="sim">
+    <div class="ctl">
+      <div class="linha"><span>N1</span><input id="n1" type="range" min="0" max="10" step="0.25" value="6"><span class="val" id="n1v"></span></div>
+      <div class="linha"><span>N2</span><input id="n2" type="range" min="0" max="10" step="0.25" value="7"><span class="val" id="n2v"></span></div>
+      <label class="chk"><input type="checkbox" id="semn2"> N2 ainda não lançada</label>
+      <div class="linha"><span>Faltas</span><input id="falt" type="range" min="0" max="80" step="1" value="5"><span class="val" id="faltv"></span></div>
+      <label class="chk"><input type="checkbox" id="temex"> Fez o exame</label>
+      <div class="linha"><span>Exame</span><input id="exame" type="range" min="0" max="10" step="0.25" value="5"><span class="val" id="examev"></span></div>
+      <div class="presets">
+        <button class="btn sec" data-p="aprov">Aprovado direto</button><button class="btn sec" data-p="exame">Cai em exame</button><button class="btn sec" data-p="falta">9,5 com 25 faltas</button><button class="btn sec" data-p="reprov">Reprovado</button>
+      </div>
+      <p class="suave" style="font-size:13px;margin-top:10px">Turma de 80 aulas.</p>
+    </div>
+    <div class="res-sim">
+      <div class="numeros">
+        <div class="num"><div class="l">Média parcial</div><div class="v" id="r-parcial">-</div></div>
+        <div class="num"><div class="l">Média final</div><div class="v" id="r-final">-</div></div>
+        <div class="num"><div class="l">Frequência</div><div class="v" id="r-freq">-</div></div>
+      </div>
+      <div class="badge" id="r-badge">-</div>
+      <ol class="regras" id="regras">
+        <li>Frequência menor que 75%: Reprovado por Falta <small>(RN04)</small></li>
+        <li>Falta N1 ou N2: Cursando</li>
+        <li>Parcial de 7,00 ou mais: Aprovado <small>(RN02)</small></li>
+        <li>Parcial abaixo de 4,00: Reprovado por Nota <small>(RN02)</small></li>
+        <li>De 4,00 a 6,99 sem exame: Em Exame <small>(RN02)</small></li>
+        <li>(Parcial + exame) / 2 de 5,00 ou mais: Aprovado <small>(RN03)</small></li>
+        <li>Senão: Reprovado por Nota <small>(RN03)</small></li>
+      </ol>
+    </div>
+  </div>
+  <div class="rodape">Mexa nos controles: a regra que decidiu fica destacada. A falta vem primeiro, e a média é arredondada antes de comparar.</div>
+</section>
+
+<!-- 11 VIEWS -->
+<section class="slide" data-titulo="Quatro views">
+  <div class="topo"><h1>Quatro views alimentam as telas</h1><span class="tag">diego</span></div>
+  <div class="grid2">
+    <div class="obj"><span class="t">Boletim</span><div class="nome">vw_boletim</div><p>Aluno, RA, disciplina, semestre, notas, média, faltas e situação. Leva também os ids que a tela de notas precisa.</p></div>
+    <div class="obj"><span class="t">Turmas</span><div class="nome">vw_turmas_lotacao</div><p>Vagas, matriculados, vagas restantes e % de ocupação de cada turma.</p></div>
+    <div class="obj"><span class="t">Relatório</span><div class="nome">vw_desempenho_turma</div><p>Média da turma, maior e menor nota, % de aprovados e de reprovados.</p></div>
+    <div class="obj"><span class="t">Extra</span><div class="nome">vw_faturamento_curso</div><p>Alunos ativos × mensalidade de cada curso. Só o Coordenador acessa.</p></div>
+  </div>
+</section>
+
+<!-- 12 TRIGGERS -->
+<section class="slide" data-titulo="Fluxo dos triggers" id="s-trg">
+  <div class="topo"><h1>O que acontece quando uma nota é lançada</h1><span class="tag">diego</span></div>
+  <div class="fluxo">
+    <div class="etapa"><div class="n">1</div><div class="nome">sp_lancar_notas</div><p>A procedure confere o perfil e faz só <code>UPDATE matricula SET n1, n2, faltas</code>. Não calcula nada.</p></div>
+    <div class="etapa"><div class="nome">trg_atualiza_situacao</div><div class="n">2</div><p><b>BEFORE UPDATE</b> (RN01 a RN04). Recalcula <code>media_final</code> e <code>situacao</code> com as mesmas functions, antes de gravar.</p></div>
+    <div class="etapa"><div class="n">3</div><div class="nome">CHECK + gravação</div><p>O banco confere <code>n1 BETWEEN 0 AND 10</code> (RN07) e grava a linha já com média e situação certas.</p></div>
+    <div class="etapa"><div class="n">4</div><div class="nome">trg_auditoria_nota</div><p><b>AFTER UPDATE</b> (RN08). Escreve em <code>log_nota</code> uma linha por campo alterado, com valor antigo, novo e usuário.</p></div>
+  </div>
+  <div style="display:flex;gap:10px;align-items:center"><button class="btn" id="trg-prox">Próximo passo →</button><button class="btn sec" id="trg-zera">Recomeçar</button><span class="suave" style="font-size:16px">Os mesmos triggers valem para qualquer <span class="mono">UPDATE</span>, até um feito direto no Workbench.</span></div>
+  <p style="margin-top:14px;font-size:17px"><span class="mono" style="font-weight:700">trg_valida_vagas</span> (BEFORE INSERT, RN05) e <span class="mono" style="font-weight:700">trg_situacao_inicial</span> (BEFORE INSERT) cuidam da matrícula nova.</p>
+</section>
+
+<!-- 13 ARMADILHAS -->
+<section class="slide" data-titulo="Três armadilhas">
+  <div class="topo"><h1>Três armadilhas que o banco escondia</h1><span class="tag">diego</span></div>
+  <div class="flips">
+    <div class="flip"><div class="in"><div class="f"><div class="rot">PROBLEMA</div><h3>O BEFORE UPDATE lê a linha antiga</h3><p>Chamar <code class="i">fn_situacao(id)</code> no trigger devolvia a situação do lançamento anterior.</p><div class="toque">Clique para ver a solução</div></div><div class="b"><div class="rot">SOLUÇÃO</div><h3>Regra separada dos dados</h3><p>A regra foi para uma função que <b>recebe os valores</b>. O trigger passa <code class="i">NEW.*</code> e a <code class="i">fn_situacao(id)</code> só lê a linha e chama a mesma auxiliar.</p></div></div></div>
+    <div class="flip"><div class="in"><div class="f"><div class="rot">PROBLEMA</div><h3>NULL não é diferente de nada</h3><p><code class="i">OLD.n1 &lt;&gt; NEW.n1</code> dá NULL quando a nota era nula, e o primeiro lançamento ficava sem auditoria.</p><div class="toque">Clique para ver a solução</div></div><div class="b"><div class="rot">SOLUÇÃO</div><h3>O operador &lt;=&gt;</h3><p>Compara tratando <b>NULL como valor</b>: <code class="i">IF NOT (OLD.n1 &lt;=&gt; NEW.n1)</code>. Agora todo lançamento é auditado.</p></div></div></div>
+    <div class="flip"><div class="in"><div class="f"><div class="rot">PROBLEMA</div><h3>6,995 é exame ou aprovado?</h3><p>A média tem 3 casas, a coluna guarda 2: o boletim mostraria 7,00 com "Em Exame".</p><div class="toque">Clique para ver a solução</div></div><div class="b"><div class="rot">SOLUÇÃO</div><h3>Arredondar antes de comparar</h3><p>A situação sempre combina com a média exibida. Na <b>frequência</b> é o contrário: ela é truncada, para 74,996% não virar 75,00%.</p></div></div></div>
+  </div>
+</section>
+
+<!-- 14 DIVISORIA MYKAEL -->
+<section class="slide escuro" data-titulo="Mykael">
+  <div class="divisoria"><span class="tag dest" style="align-self:flex-start">branch: mykael</span><div class="nome">Mykael</div><div class="frase">Procedures e a prova de que tudo funciona</div></div>
+</section>
+
+<!-- 15 PROCEDURES -->
+<section class="slide" data-titulo="Seis procedures" id="s-proc">
+  <div class="topo"><h1>Seis procedures, uma porta de entrada</h1><span class="tag">mykael</span></div>
+  <div class="proc">
+    <div class="lista" id="proc-lista"></div>
+    <div class="detalhe" id="proc-det"></div>
+  </div>
+  <div class="rodape">Clique em cada procedure. Regra quebrada vira <span class="mono">SIGNAL SQLSTATE 45000</span> com uma mensagem legível.</div>
+</section>
+
+<!-- 16 TESTES -->
+<section class="slide" data-titulo="Hash e testes" id="s-testes">
+  <div class="topo"><h1>Hash de senha e 39 testes</h1><span class="tag">mykael</span></div>
+  <div class="testes">
+    <div>
+      <div class="cartao" style="margin-bottom:16px"><b>Senha e perfis</b><ul style="margin-top:8px;font-size:16px"><li>SHA-256 em hexadecimal, em <span class="mono">CHAR(64)</span></li><li>O app calcula o hash; o banco só compara</li><li>A resposta não diz se errou o login ou a senha</li><li>O perfil é conferido no banco, mesmo chamando a procedure direto</li></ul></div>
+      <div class="grande" id="t-num">0</div><div style="font-size:22px;color:var(--suave);margin-top:4px">de 39 verificações OK, 0 falhas</div>
+    </div>
+    <div>
+      <div class="suave" style="font-size:15px">Clique em um teste para ver o esperado e o obtido:</div>
+      <div class="chips" id="t-chips"></div>
+      <div class="result" id="t-res" style="margin-top:14px"></div>
+    </div>
+  </div>
+</section>
+
+<!-- 17 DIVISORIA LEO -->
+<section class="slide escuro" data-titulo="Leo">
+  <div class="divisoria"><span class="tag dest" style="align-self:flex-start">branch: leo</span><div class="nome">Leo</div><div class="frase">A cara do sistema</div></div>
+</section>
+
+<!-- 18 INTERFACE -->
+<section class="slide" data-titulo="Interface sem regra de negócio">
+  <div class="topo"><h1>A interface não tem regra de negócio</h1><span class="tag">leo</span></div>
+  <div class="dois">
+    <table class="t"><thead><tr><th>Classe</th><th>Papel</th></tr></thead><tbody>
+      <tr><td>LoginFrame</td><td>Gera o hash e chama sp_LoginUsuario</td></tr>
+      <tr><td>DashboardFrame</td><td>Menu lateral por perfil, consultas e matrícula</td></tr>
+      <tr><td>AlunosFrame</td><td>Cadastrar, editar e excluir alunos</td></tr>
+      <tr><td>SgaRepository</td><td>Única classe que fala com o banco</td></tr>
+      <tr><td>DatabaseConfig</td><td>Conexão a partir de variáveis de ambiente</td></tr>
+      <tr><td>PasswordHash</td><td>Calcula o SHA-256 da senha</td></tr>
+    </tbody></table>
+    <div class="cartao"><b class="mono" style="font-size:20px;color:var(--escuro)">Regras de ouro</b><ul style="margin-top:10px;font-size:18px"><li>Só <span class="mono">CALL</span> e <span class="mono">SELECT</span> em view; nenhum <span class="mono">INSERT</span>, <span class="mono">UPDATE</span> ou <span class="mono">DELETE</span></li><li>Valores sempre como parâmetros, nunca concatenados</li><li>Lista de views permitidas</li><li>A senha do MySQL fica em variável de ambiente, fora do Git</li><li>Colunas lidas pelo nome, não pela posição</li></ul></div>
+  </div>
+  <div class="rodape">Java 17, Swing, JDBC e Maven. A aparência usa a biblioteca FlatLaf.</div>
+</section>
+
+<!-- 19 PERFIS INTERATIVO -->
+<section class="slide" data-titulo="Login e perfis" id="s-perfis">
+  <div class="topo"><h1>Login com hash e menu por perfil</h1><span class="tag">leo</span></div>
+  <div class="perfis">
+    <div>
+      <div class="seg"><button data-p="sec" class="ativo">Secretário</button><button data-p="coord">Coordenador</button></div>
+      <div class="menu-sim" id="menu-sim"></div>
+    </div>
+    <div>
+      <p style="font-size:18px">Escolha o perfil e veja o menu mudar. Depois tente a operação que só o Coordenador pode fazer:</p>
+      <button class="btn dest" id="p-fechar">Chamar sp_fechar_semestre('2026.2') como este usuário</button>
+      <div class="caixa-erro vazia" id="p-saida">O resultado aparece aqui.</div>
+      <div class="camadas2"><div><b>Camada 1: a tela</b>Os botões de notas, fechamento, relatórios e auditoria só são criados se o perfil for Coordenador.</div><div><b>Camada 2: o banco</b>As procedures conferem o perfil e recusam o Secretário, mesmo que alguém contorne a tela.</div></div>
+      <p class="suave" style="font-size:15px;margin-top:14px">No login, a senha digitada vira SHA-256 no app e só o hash segue para o banco.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 20 ROTEIRO -->
+<section class="slide" data-titulo="Roteiro da demonstração" id="s-roteiro">
+  <div class="topo"><h1>Roteiro da demonstração</h1><span class="tag">grupo</span></div>
+  <div class="passos" id="passos"></div>
+  <div class="rodape">Clique em um passo para marcar como feito. Todas as senhas de teste são <span class="mono">Senha@123</span>.</div>
+</section>
+
+<!-- 21 ENCERRAMENTO -->
+<section class="slide escuro" data-titulo="Demonstração">
+  <div class="divisoria"><span class="tag dest" style="align-self:flex-start">CALL sp_demonstracao();</span><div class="nome">Demonstração</div><div class="frase">Login com cada perfil, matrícula barrada pelo banco, lançamento de notas e auditoria.</div></div>
+</section>
+
+</div>
+
+<div id="barra"></div><div id="contador"></div><button id="ajuda-btn">? atalhos</button>
+<div class="overlay" id="ajuda"><h2>Atalhos</h2><table class="teclas">
+<tr><td><kbd>→</kbd> <kbd>Espaço</kbd> <kbd>PgDn</kbd></td><td>próximo (no diagrama, próxima relação)</td></tr>
+<tr><td><kbd>←</kbd> <kbd>PgUp</kbd></td><td>anterior</td></tr>
+<tr><td><kbd>G</kbd></td><td>lista de slides</td></tr><tr><td><kbd>F</kbd></td><td>tela cheia</td></tr><tr><td><kbd>Esc</kbd></td><td>fecha janelas e sai do modo guiado</td></tr>
+<tr><td>clique nas imagens</td><td>amplia</td></tr></table></div>
+<div class="overlay" id="grade"><h2>Slides</h2><div class="grade" id="grade-itens"></div></div>
+<div class="overlay" id="zoom"><img alt=""></div>
+
+<script>
+'use strict';
+const ER = {{ER_DATA}};
+const $ = (s, r) => (r || document).querySelector(s), $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+
+/* ------------------------------------------------ motor dos slides */
+const stage = $('#stage'), slides = $$('.slide'), mods = {};
+let cur = 0;
+function ajusta() {
+  const s = Math.min(innerWidth / 1280, innerHeight / 720);
+  stage.style.transform = `scale(${s}) translate(-50%, -50%)`;
+  stage.style.left = '50%'; stage.style.top = '50%';
+}
+addEventListener('resize', ajusta); ajusta();
+function mostra(n, dir) {
+  n = Math.max(0, Math.min(slides.length - 1, n));
+  if (n === cur && slides[n].classList.contains('ativo')) return;
+  const antigo = slides[cur];
+  if (mods[antigo.id] && mods[antigo.id].sai) mods[antigo.id].sai();
+  antigo.classList.remove('ativo'); antigo.classList.toggle('saiu', n > cur);
+  cur = n;
+  slides.forEach((s, i) => { if (i !== cur) s.classList.toggle('saiu', i < cur); });
+  slides[cur].classList.remove('saiu'); slides[cur].classList.add('ativo');
+  if (mods[slides[cur].id] && mods[slides[cur].id].entra) mods[slides[cur].id].entra();
+  if (slides[cur].querySelector('.cont')) contar();
+  $('#barra').style.width = ((cur + 1) / slides.length * 100) + '%';
+  $('#contador').textContent = (cur + 1) + ' / ' + slides.length;
+  history.replaceState(null, '', '#' + (cur + 1));
+  $$('#grade-itens button').forEach((b, i) => b.classList.toggle('atual', i === cur));
+}
+function proximo() { const m = mods[slides[cur].id]; if (m && m.prox && m.prox()) return; mostra(cur + 1); }
+function anterior() { const m = mods[slides[cur].id]; if (m && m.ant && m.ant()) return; mostra(cur - 1); }
+function fechaOverlays() { let fechou = false; $$('.overlay.aberto').forEach(o => { o.classList.remove('aberto'); fechou = true; }); return fechou; }
+addEventListener('keydown', e => {
+  if (e.target.matches('input, textarea')) { if (!['ArrowRight', 'ArrowLeft'].includes(e.key) || e.target.type === 'range') return; }
+  if (e.key === 'Escape') { if (!fechaOverlays()) { const m = mods[slides[cur].id]; if (m && m.esc) m.esc(); } return; }
+  if (['ArrowRight', 'PageDown', ' '].includes(e.key)) { e.preventDefault(); proximo(); }
+  else if (['ArrowLeft', 'PageUp'].includes(e.key)) { e.preventDefault(); anterior(); }
+  else if (e.key === 'Home') mostra(0); else if (e.key === 'End') mostra(slides.length - 1);
+  else if (e.key === 'g' || e.key === 'G') $('#grade').classList.toggle('aberto');
+  else if (e.key === 'f' || e.key === 'F') { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); }
+});
+$('#ajuda-btn').onclick = () => $('#ajuda').classList.toggle('aberto');
+$('#ajuda').onclick = () => $('#ajuda').classList.remove('aberto');
+$('#grade-itens').innerHTML = slides.map((s, i) => `<button data-i="${i}"><small>${String(i + 1).padStart(2, '0')}</small>${s.dataset.titulo}</button>`).join('');
+$('#grade-itens').onclick = e => { const b = e.target.closest('button'); if (b) { $('#grade').classList.remove('aberto'); mostra(+b.dataset.i); } };
+$('#zoom').onclick = () => $('#zoom').classList.remove('aberto');
+document.addEventListener('click', e => { const im = e.target.closest('img.zoomable'); if (im) { $('#zoom img').src = im.src; $('#zoom').classList.add('aberto'); } });
+
+/* ------------------------------------------------ slide 2: camadas */
+$$('.camada').forEach(c => c.addEventListener('click', () => { $$('.camada').forEach(x => x.classList.remove('sel')); c.classList.add('sel'); }));
+
+/* ------------------------------------------------ slide 5: diagrama */
+(function () {
+  const svg = $('#er'), painel = $('#er-painel'), vb0 = ER.vb.slice();
+  let vb = vb0.slice(), anim = null, guiado = -1, relAtual = -1, tabAtual = null;
+  const tbl = n => $(`.tbl[data-t="${n}"]`, svg), rels = () => $$('.rel', svg);
+  const cap = s => s.replace(/_/g, ' ');
+  function setVB(a) { vb = a; svg.setAttribute('viewBox', a.join(' ')); }
+  function zoomPara(alvo, ms) {
+    if (anim) cancelAnimationFrame(anim);
+    const de = vb.slice(), ini = performance.now(); ms = ms || 520;
+    (function passo(t) {
+      const k = Math.min(1, (t - ini) / ms), e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+      setVB(de.map((v, i) => v + (alvo[i] - v) * e));
+      if (k < 1) anim = requestAnimationFrame(passo);
+    })(ini);
+  }
+  function caixaDe(nomes) {
+    const bs = nomes.map(n => ER.caixas[n]);
+    const x0 = Math.min(...bs.map(b => b.x)), y0 = Math.min(...bs.map(b => b.y));
+    const x1 = Math.max(...bs.map(b => b.x + b.w)), y1 = Math.max(...bs.map(b => b.y + b.h));
+    const pad = 70, ar = vb0[2] / vb0[3];
+    let w = x1 - x0 + pad * 2, h = y1 - y0 + pad * 2;
+    if (w / h < ar) w = h * ar; else h = w / ar;
+    w = Math.min(w, vb0[2]); h = Math.min(h, vb0[3]);
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2 - 22;
+    return [Math.max(0, Math.min(vb0[2] - w, cx - w / 2)), Math.max(-30, Math.min(vb0[3] - h, cy - h / 2)), w, h];
+  }
+  function limpa() {
+    svg.classList.remove('tem-foco');
+    $$('.tbl', svg).forEach(t => t.classList.remove('foco', 'vizinha'));
+    rels().forEach(r => r.classList.remove('on', 'pulsa'));
+  }
+  function visaoGeral() {
+    guiado = -1; relAtual = -1; tabAtual = null; limpa(); zoomPara(vb0);
+    painel.innerHTML = `<h3>Visão geral</h3><p class="desc">9 tabelas e 11 ligações. Passe o mouse em uma tabela para ver suas relações e clique para dar zoom e ler a explicação.</p>
+      <h4>Para explicar</h4><p class="desc">Clique em <b>▶ Explicar as relações</b> e avance com <kbd>→</kbd>. Cada passo dá zoom nas duas tabelas e mostra a ligação.</p>
+      <h4>Como ler</h4><p class="desc"><span class="mono" style="color:#1d4ed8;font-weight:700">1</span> é o lado um e <span class="mono" style="color:#1d4ed8;font-weight:700">N</span> o lado muitos. <b>PK</b> chave primária, <b>FK</b> chave estrangeira, <b>UK</b> valor único.</p>`;
+  }
+  function destaca(nomes, relIdx) {
+    limpa(); svg.classList.add('tem-foco');
+    nomes.forEach(n => tbl(n).classList.add('foco'));
+    relIdx.forEach(i => { const r = rels()[i]; r.classList.add('on'); [r.dataset.a, r.dataset.b].forEach(n => { if (!nomes.includes(n)) tbl(n).classList.add('vizinha'); }); });
+  }
+  function focaTabela(n) {
+    guiado = -1; relAtual = -1; tabAtual = n;
+    const ids = ER.relacoes.map((r, i) => (r.a === n || r.b === n) ? i : -1).filter(i => i >= 0);
+    destaca([n], ids);
+    const viz = new Set([n]); ids.forEach(i => { viz.add(ER.relacoes[i].a); viz.add(ER.relacoes[i].b); });
+    zoomPara(caixaDe([...viz]));
+    const t = ER.tabelas[n];
+    painel.innerHTML = `<h3>${n}</h3><p class="desc">${t.desc}</p><h4>Colunas</h4><ul class="cols">${t.cols.map(c => `<li><span class="k ${c.k.includes('PK') ? 'pk' : c.k.includes('FK') ? 'fk' : 'uk'}">${c.k}</span>${c.n}<span class="t">${c.t}</span></li>`).join('')}</ul>
+      <h4>Relações (${ids.length})</h4><div class="rels">${ids.map(i => { const r = ER.relacoes[i]; return `<button data-r="${i}"><b>${r.a}</b> 1 ─ N <b>${r.b}</b> <span class="suave">(${r.rot})</span></button>`; }).join('')}</div>`;
+  }
+  function focaRelacao(i, passoTxt) {
+    relAtual = i; tabAtual = null;
+    const r = ER.relacoes[i];
+    destaca([r.a, r.b], [i]); rels()[i].classList.add('pulsa');
+    zoomPara(caixaDe([r.a, r.b]));
+    painel.innerHTML = `${passoTxt ? `<div class="passo">${passoTxt}</div>` : ''}<h3>${r.a} <span style="color:#b45309">1 ─ N</span> ${r.b}</h3>
+      <p class="explica">${r.txt}</p><h4>Ver tabela</h4><div class="rels"><button data-t="${r.a}">${r.a}</button><button data-t="${r.b}">${r.b}</button></div>`;
+  }
+  function passoGuiado() { focaRelacao(ER.guiada[guiado], `PASSO ${guiado + 1} DE ${ER.guiada.length}`); }
+  function iniciaGuiado() { guiado = 0; passoGuiado(); }
+  svg.addEventListener('click', e => {
+    const t = e.target.closest('.tbl'), r = e.target.closest('.rel');
+    if (t) focaTabela(t.dataset.t); else if (r) focaRelacao(+r.dataset.i); else visaoGeral();
+  });
+  svg.addEventListener('keydown', e => { if ((e.key === 'Enter') && e.target.closest('.tbl')) focaTabela(e.target.closest('.tbl').dataset.t); });
+  painel.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.r) focaRelacao(+b.dataset.r); else if (b.dataset.t) focaTabela(b.dataset.t);
+  });
+  $('#er-reset').onclick = visaoGeral; $('#er-guiado').onclick = iniciaGuiado;
+  mods['s-er'] = {
+    entra: visaoGeral,
+    prox() { if (guiado < 0) return false; if (guiado < ER.guiada.length - 1) { guiado++; passoGuiado(); return true; } visaoGeral(); return false; },
+    ant() { if (guiado < 0) return false; if (guiado > 0) { guiado--; passoGuiado(); return true; } visaoGeral(); return true; },
+    esc: visaoGeral, sai() { limpa(); setVB(vb0); }
+  };
+})();
+
+/* ------------------------------------------------ slide 6: 3FN */
+$$('.fn').forEach(c => c.addEventListener('click', () => c.classList.toggle('aberto')));
+
+/* ------------------------------------------------ slide 7: telas */
+(function () {
+  const leg = ['Painel inicial do Coordenador: cartões das views e gráfico de aprovados × reprovados por turma. O faturamento só aparece para este perfil.',
+    'Notas e exame: Bernardo passou de Em Exame para Aprovado depois do exame. A média e a situação foram calculadas pelo banco.',
+    'Auditoria (RN08): cada alteração de nota vira uma linha, escrita pelo trigger, com o valor antigo, o novo e quem alterou.',
+    'Faturamento por curso, em reais, lido da view vw_faturamento_curso.'];
+  const fontes = $$('#s-telas div[style*="none"] img');
+  function vai(i) {
+    $$('#telas-abas .aba').forEach(a => a.classList.toggle('ativa', +a.dataset.i === i));
+    $('#telas-img').src = fontes[i].src; $('#telas-leg').textContent = leg[i];
+  }
+  $('#telas-abas').onclick = e => { const a = e.target.closest('.aba'); if (a) vai(+a.dataset.i); };
+  vai(0);
+})();
+
+/* ------------------------------------------------ slide 9: contadores */
+let contou = false;
+function contar() {
+  if (contou) return; contou = true;
+  $$('.cont .n').forEach(el => {
+    const alvo = +el.dataset.alvo; let v = 0;
+    const id = setInterval(() => { v++; el.textContent = v; if (v >= alvo) clearInterval(id); }, 140);
+  });
+}
+mods['s-contadores'] = {};
+
+/* ------------------------------------------------ slide 10: simulador */
+(function () {
+  const r2 = x => Math.round((x + Number.EPSILON) * 100) / 100, tr2 = x => Math.floor(x * 100 + 1e-9) / 100;
+  const f2 = x => x.toFixed(2).replace('.', ',');
+  const el = id => document.getElementById(id), TOTAL = 80;
+  const cores = { 'Aprovado': '#1f7a3e', 'Reprovado por Nota': '#b91c1c', 'Reprovado por Falta': '#b91c1c', 'Em Exame': '#b45309', 'Cursando': '#2563eb' };
+  function calc() {
+    const n1 = +el('n1').value, n2 = +el('n2').value, sem2 = el('semn2').checked, f = +el('falt').value, temex = el('temex').checked, ex = +el('exame').value;
+    el('n1v').textContent = f2(n1); el('n2v').textContent = sem2 ? '-' : f2(n2); el('faltv').textContent = f; el('examev').textContent = temex ? f2(ex) : '-';
+    el('n2').disabled = sem2; el('exame').disabled = !temex;
+    const freq = tr2((TOTAL - f) / TOTAL * 100); let sit, regra = 0, parcial = null, fin = null;
+    if (!sem2) parcial = r2((n1 + n2) / 2);
+    if (freq < 75) { sit = 'Reprovado por Falta'; regra = 1; }
+    else if (sem2) { sit = 'Cursando'; regra = 2; }
+    else if (parcial >= 7) { sit = 'Aprovado'; regra = 3; }
+    else if (parcial < 4) { sit = 'Reprovado por Nota'; regra = 4; }
+    else if (!temex) { sit = 'Em Exame'; regra = 5; }
+    else { fin = r2((parcial + ex) / 2); sit = fin >= 5 ? 'Aprovado' : 'Reprovado por Nota'; regra = fin >= 5 ? 6 : 7; }
+    el('r-parcial').textContent = parcial === null ? '-' : f2(parcial);
+    el('r-final').textContent = fin !== null ? f2(fin) : (parcial !== null && (parcial >= 7 || parcial < 4) ? f2(parcial) : '-');
+    el('r-freq').textContent = f2(freq) + '%';
+    const b = el('r-badge'); b.textContent = sit; b.style.background = cores[sit];
+    $$('#regras li').forEach((li, i) => { li.classList.toggle('vale', i + 1 === regra); li.classList.toggle('pulou', i + 1 < regra); });
+  }
+  $$('#s-sim input').forEach(i => i.addEventListener('input', calc));
+  const P = { aprov: [8, 9, 3, 0, 5], exame: [6, 7, 5, 0, 5], falta: [9.5, 9.5, 25, 0, 5], reprov: [3, 2.5, 4, 0, 5] };
+  $$('#s-sim .presets .btn').forEach(b => b.onclick = () => { const p = P[b.dataset.p]; el('n1').value = p[0]; el('n2').value = p[1]; el('falt').value = p[2]; el('semn2').checked = false; el('temex').checked = false; calc(); });
+  calc();
+})();
+
+/* ------------------------------------------------ slide 12: fluxo dos triggers */
+(function () {
+  const et = $$('#s-trg .etapa'); let n = 0;
+  function pinta() { et.forEach((e, i) => e.classList.toggle('on', i < n)); }
+  function prox() { if (n < et.length) { n++; pinta(); return true; } return false; }
+  $('#trg-prox').onclick = () => { if (!prox()) { n = 0; pinta(); } };
+  $('#trg-zera').onclick = () => { n = 0; pinta(); };
+  mods['s-trg'] = { entra() { n = 0; pinta(); }, prox, ant() { if (n > 0) { n--; pinta(); return true; } return false; } };
+})();
+
+/* ------------------------------------------------ slide 13: cartões que viram */
+$$('.flip').forEach(f => f.addEventListener('click', () => f.classList.toggle('virou')));
+
+/* ------------------------------------------------ slide 15: procedures */
+(function () {
+  const P = [
+    ['sp_LoginUsuario', 'Confere login e hash. Devolve id, nome, e-mail e perfil, nunca a senha.', 'Resultado vazio se não conferir. A tela mostra: "Login ou senha inválidos."', 'Compara o hash por bytes, então o login diferencia maiúscula de minúscula.'],
+    ['sp_matricular_aluno', 'Cria a matrícula depois de checar aluno ativo, turma aberta, matrícula repetida, disciplina já aprovada e pré-requisito.', 'Falta pré-requisito: o aluno não foi aprovado em Algoritmos.', 'RN05 (vagas) fica com o trigger; RN06 (pré-requisito) e RN09 (aluno ativo) ficam aqui.'],
+    ['sp_lancar_notas', 'Grava N1, N2 e faltas. O trigger calcula média e situação.', 'Apenas o Coordenador pode lançar notas.', 'Também recusa apagar uma nota já lançada com NULL. Só o Coordenador executa.'],
+    ['sp_lancar_exame', 'Grava o exame, só se a matrícula está Em Exame.', 'Exame só pode ser lançado para matrícula Em Exame; a situação atual é Aprovado.', 'RN03: média final = (parcial + exame) / 2. Só o Coordenador executa.'],
+    ['sp_historico_aluno', 'Todas as disciplinas do aluno, ordenadas por semestre.', 'Aluno não encontrado.', 'Alimenta o histórico e o cartão de CR da tela.'],
+    ['sp_fechar_semestre', 'Percorre as matrículas com um cursor, dentro de uma transação, e encerra as turmas.', 'Matrícula 17 (Alice Monteiro) sem N1 ou N2: lance as notas antes de fechar o semestre.', 'Tudo ou nada: se uma matrícula está sem nota, faz ROLLBACK e nada muda. Só o Coordenador.']
+  ];
+  const lista = $('#proc-lista'), det = $('#proc-det');
+  lista.innerHTML = P.map((p, i) => `<button data-i="${i}"><b>${p[0]}</b>${p[1].split('.')[0]}.</button>`).join('');
+  function sel(i) {
+    $$('button', lista).forEach((b, k) => b.classList.toggle('sel', k === i));
+    const p = P[i];
+    det.innerHTML = `<h3>${p[0]}</h3><p>${p[1]}</p><div class="rot">O QUE APARECE QUANDO O BANCO RECUSA</div><div class="erro-ex">${p[2]}</div><div class="rot">POR QUE IMPORTA</div><p>${p[3]}</p>`;
+  }
+  lista.onclick = e => { const b = e.target.closest('button'); if (b) sel(+b.dataset.i); };
+  sel(0);
+})();
+
+/* ------------------------------------------------ slide 16: testes */
+(function () {
+  const T = [
+    ['T1 login', 'Login com senha errada e com usuário inexistente', 'resultado vazio nos dois', 'vazio; com a senha certa, 1 linha (Coordenador)'],
+    ['T2 lotada', 'Aluno 5 na turma 3 (4 de 4 vagas)', 'falha, turma lotada', 'Turma lotada: a turma 3 já tem 4 de 4 vagas ocupadas.'],
+    ['T3 pré-req.', 'Aluno 16 em Estruturas de Dados, reprovado em Algoritmos', 'falha, pré-requisito', 'Falta pré-requisito: o aluno não foi aprovado em Algoritmos.'],
+    ['T4 trancado', 'Alunos 19 (Trancado) e 20 (Formado)', 'falha', 'Aluno Trancado não pode se matricular: só alunos Ativos.'],
+    ['T5 nota', 'N1 = 11 e N2 = -1', 'falha pelo CHECK', "Check constraint 'ck_matricula_n1' is violated."],
+    ['T6 exame', 'N1 6,0 e N2 7,0, depois exame 5,0', 'Em Exame, depois Aprovado com média 5,75', 'confere'],
+    ['T7 falta', 'Média 9,0 com 25 faltas em 80 aulas', 'Reprovado por Falta', 'média 9,00, frequência 68,75%, Reprovado por Falta'],
+    ['T8 log', 'Lançar N1 e N2 numa matrícula sem notas', '2 linhas em log_nota', '2 linhas (n1 e n2, de NULL para o valor), com o usuário'],
+    ['T9 views', 'Consultar as 3 views', '35, 5 e 5 linhas', '35, 5 e 5 linhas'],
+    ['T10 perfil', 'Secretário fecha o semestre', 'falha', 'Apenas o Coordenador pode fechar o semestre.'],
+    ['T11 fechar', 'Fechar semestre com e sem notas completas', 'recusa com ROLLBACK; depois encerra', 'nada muda na recusa; no sucesso a turma vira Encerrada'],
+    ['T12 trava', 'Aprovado repete disciplina; apagar nota com NULL', 'recusa nos dois', 'Aluno já foi aprovado nesta disciplina. / Não é possível apagar uma nota já lançada: informe o novo valor.']
+  ];
+  const chips = $('#t-chips'), res = $('#t-res');
+  chips.innerHTML = T.map((t, i) => `<button class="chip" data-i="${i}">${t[0]}</button>`).join('');
+  function sel(i) {
+    $$('.chip', chips).forEach((c, k) => c.classList.toggle('sel', k === i));
+    const t = T[i]; res.innerHTML = `<span class="ok">OK</span> <b>${t[0]}</b><div class="rot">CENÁRIO</div>${t[1]}<div class="rot">ESPERADO</div>${t[2]}<div class="rot">OBTIDO</div><span class="mono" style="font-size:14px">${t[3]}</span>`;
+  }
+  chips.onclick = e => { const c = e.target.closest('.chip'); if (c) sel(+c.dataset.i); };
+  res.innerHTML = '<span class="suave">Escolha um teste acima.</span>';
+  mods['s-testes'] = { entra() {
+    const el = $('#t-num'); let v = 0; clearInterval(el._id);
+    el._id = setInterval(() => { v += 1; el.textContent = v; if (v >= 39) clearInterval(el._id); }, 28);
+  } };
+})();
+
+/* ------------------------------------------------ slide 19: perfis */
+(function () {
+  const itens = [['', 'Início', 1], ['CONSULTAS', '', 1], ['', 'Turmas', 1], ['', 'Boletim', 1], ['', 'Histórico', 1], ['SECRETARIA', '', 1], ['', 'Matricular', 1], ['', 'Alunos', 1],
+    ['COORDENAÇÃO', '', 2], ['', 'Notas e exame', 2], ['', 'Fechar semestre', 2], ['', 'Relatórios', 2], ['', 'Auditoria', 2]];
+  const menu = $('#menu-sim'), saida = $('#p-saida'); let perfil = 'sec';
+  function desenha() {
+    menu.innerHTML = `<div class="u"><b>${perfil === 'sec' ? 'Carla Nogueira' : 'Ana Beatriz Moura'}</b><span style="color:${perfil === 'sec' ? '#86efac' : '#93c5fd'}">${perfil === 'sec' ? 'SECRETARIO' : 'COORDENADOR'}</span></div>` +
+      itens.map(([sec, nome, nivel]) => {
+        const some = nivel === 2 && perfil === 'sec';
+        return sec ? `<div class="sec it ${some ? 'some' : ''}">${sec}</div>` : `<div class="it ${some ? 'some' : ''} ${nivel === 2 && perfil === 'coord' ? 'novo' : ''}">${nome}</div>`;
+      }).join('');
+  }
+  function reseta() { saida.className = 'caixa-erro vazia'; saida.textContent = 'O resultado aparece aqui.'; }
+  $$('.seg button', $('#s-perfis')).forEach(b => b.onclick = () => {
+    perfil = b.dataset.p; $$('.seg button', $('#s-perfis')).forEach(x => x.classList.toggle('ativo', x === b)); desenha(); reseta();
+  });
+  $('#p-fechar').onclick = () => {
+    if (perfil === 'sec') { saida.className = 'caixa-erro erro'; saida.innerHTML = '<b>Operação não concluída</b><br>Apenas o Coordenador pode fechar o semestre.'; }
+    else { saida.className = 'caixa-erro info'; saida.innerHTML = '<b>O banco aceita o perfil e confere as notas</b><br>Matrícula 17 (Alice Monteiro) sem N1 ou N2: lance as notas antes de fechar o semestre.'; }
+  };
+  desenha();
+  mods['s-perfis'] = { entra() { reseta(); } };
+})();
+
+/* ------------------------------------------------ slide 20: roteiro */
+(function () {
+  const P = [['coord.ana, senha errada', 'Login recusado: "Login ou senha inválidos."'], ['sec.carla', 'Menu sem coordenação e painel sem faturamento'],
+    ['sec.carla', 'Matricular Rafael Domingues em Estruturas de Dados: o banco recusa (pré-requisito)'], ['sec.carla', 'Matricular Queila Macedo em Banco de Dados: matrícula realizada'],
+    ['coord.ana', 'Lançar notas do Daniel Pacheco e o exame do Bernardo Cavalcante'], ['coord.ana', 'Auditoria mostra as linhas geradas pelo trigger'],
+    ['coord.ana', 'Fechar semestre: recusado enquanto houver matrícula sem N1 ou N2']];
+  const box = $('#passos');
+  box.innerHTML = P.map((p, i) => `<div class="pass"><div class="nn">${i + 1}</div><div class="q">${p[0]}</div><div class="o">${p[1]}</div></div>`).join('');
+  box.onclick = e => { const p = e.target.closest('.pass'); if (p) p.classList.toggle('feito'); };
+})();
+
+/* ------------------------------------------------ início */
+const inicio = parseInt(location.hash.slice(1), 10);
+mostra(isNaN(inicio) ? 0 : inicio - 1);
+</script>
+</body>
+</html>
