@@ -35,11 +35,11 @@ Branch: `diego` · Regras de negócio dentro do banco (ver `docs/DIVISAO_TRABALH
 - [x] `fn_cr_aluno(id_aluno)` (opcional, ponto extra)
 - [x] `gerar_SGA_completo.ps1` + primeira versão do `SGA_completo.sql`
 - [ ] **Rodar `01_ddl.sql` → `02a` → `teste_dev_02a.sql` no MySQL e conferir esperado × obtido** (o script foi escrito sem um MySQL para testar)
-- [ ] Gerar o `SGA_completo.sql` de novo quando `02b`, `02c`, `03_dados` e `04_testes` estiverem prontos, e rodar do zero sem erro
+- [x] Gerar o `SGA_completo.sql` de novo quando `02b`, `02c`, `03_dados` e `04_testes` estiverem prontos, e rodar do zero sem erro
 
 ### S4 — Slides (até 20/11)
 - [x] Modelo dos slides com a minha parte preenchida
-- [ ] Juntar as partes de Guilherme, Mykael e Leo nos slides
+- [x] Juntar as partes de Guilherme, Mykael e Leo nos slides
 
 ## Também contribuo com
 - [x] Minha parte do relatório técnico (`relatorio/functions_views_triggers.md`)
