@@ -401,7 +401,7 @@ divisoria('Mykael', 'mykael', 'Procedures e a prova de que tudo funciona');
 // M2. Hash, perfis e testes
 {
   const s = pres.addSlide({ masterName: 'CONTEUDO' });
-  titulo(s, 'Hash de senha e 35 testes', 'mykael');
+  titulo(s, 'Hash de senha e 39 testes', 'mykael');
   cartao(s, 0.5, 1.2, 4.4, 3.75);
   texto(s, 'Senha e perfis', 0.7, 1.32, 4, 0.3, { fontFace: MONO, fontSize: 13, bold: true, color: COR.escuro });
   marcadores(s, [
@@ -414,14 +414,14 @@ divisoria('Mykael', 'mykael', 'Procedures e a prova de que tudo funciona');
     0.7, 4.0, 4.0, 0.85, { fontSize: 11, color: COR.suave });
   cartao(s, 5.1, 1.2, 4.4, 3.75);
   texto(s, '04_testes.sql', 5.3, 1.32, 4, 0.3, { fontFace: MONO, fontSize: 13, bold: true, color: COR.escuro });
-  s.addText('35 de 35', { x: 5.3, y: 1.7, w: 4.0, h: 0.7, fontFace: FONTE, fontSize: 40, bold: true, color: '1F7A3E', margin: 0, isTextBox: true });
+  s.addText('39 de 39', { x: 5.3, y: 1.7, w: 4.0, h: 0.7, fontFace: FONTE, fontSize: 40, bold: true, color: '1F7A3E', margin: 0, isTextBox: true });
   texto(s, 'verificações OK, 0 falhas', 5.3, 2.4, 4.0, 0.3, { fontSize: 13, color: COR.suave });
   marcadores(s, [
     'Login errado devolve vazio',
     'Turma lotada, sem pré-requisito, aluno trancado ou formado',
     'Nota fora de 0 a 10 é recusada',
     'Em Exame, média 9 com muitas faltas, log de notas',
-    'Secretário fechando o semestre é barrado',
+    'Secretário fechando semestre, aprovado repetindo disciplina e nota apagada são barrados',
   ], 5.3, 2.85, 4.0, 2.0, 11.5);
   s.addNotes('A tabela esperado x obtido sai na execução do 04_testes.sql. Está no relatório, seção 7.');
 }

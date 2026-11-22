@@ -7,7 +7,7 @@ A apresentação segue os slides de `apresentacao/SGA_apresentacao.pptx` (20 sli
 | 1 a 3 | Qualquer um (combinem antes) | Abertura, "as regras ficam no banco" e divisão do trabalho | 1 min |
 | 4 a 6 | Guilherme | Modelagem, DDL, 3FN e telas do Coordenador | 3 min |
 | 7 a 12 | Diego | Functions, views, triggers e dificuldades | 3 min |
-| 13 a 15 | Mykael | Procedures, hash de senha e os 35 testes | 3 min |
+| 13 a 15 | Mykael | Procedures, hash de senha e os 39 testes | 3 min |
 | 16 a 18 | Leo | Interface, login e controle de acesso | 3 min |
 | 19 e 20 | O grupo | Roteiro da demonstração e a demonstração ao vivo | 4 min |
 
@@ -82,5 +82,5 @@ Se sobrar tempo, mostrem os Relatórios (desempenho, lotação e faturamento em 
 - Que a interface só usa **procedures e views**, sem SQL solto.
 - Que a **senha** não é guardada em texto puro.
 - Que o **perfil** é respeitado: o Secretário não fecha semestre nem lança nota, e o banco recusa mesmo que alguém chame a procedure direto.
-- Que existem **testes** com resultado esperado e obtido (os 35 do `04_testes.sql`).
+- Que existem **testes** com resultado esperado e obtido (os 39 do `04_testes.sql`).
 - Que o **modelo** está normalizado (3FN) e que vocês sabem explicar a única redundância (média final e situação, mantidas pelos triggers).

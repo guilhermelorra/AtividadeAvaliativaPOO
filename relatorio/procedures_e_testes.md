@@ -12,14 +12,17 @@ situação da matrícula nunca são calculadas nas procedures: elas gravam `n1`,
 | Procedure | O que faz | Regras |
 |---|---|---|
 | `sp_LoginUsuario(login, hash)` | Devolve id, nome, e-mail e perfil; resultado vazio se não conferir | senha nunca volta |
-| `sp_matricular_aluno(aluno, turma, usuário)` | Cria a matrícula e devolve o `id_matricula` | RN05, RN06, RN09 |
-| `sp_lancar_notas(matrícula, n1, n2, faltas, usuário)` | Grava notas e faltas | RN07, RN08; só Coordenador |
+| `sp_matricular_aluno(aluno, turma, usuário)` | Cria a matrícula e devolve o `id_matricula` | RN05, RN06, RN09; não repete disciplina já aprovada |
+| `sp_lancar_notas(matrícula, n1, n2, faltas, usuário)` | Grava notas e faltas | RN07, RN08; não apaga nota já lançada; só Coordenador |
 | `sp_lancar_exame(matrícula, exame, usuário)` | Grava o exame | só se `Em Exame`; RN03; só Coordenador |
 | `sp_historico_aluno(aluno)` | Boletim do aluno por semestre | |
 | `sp_fechar_semestre(semestre, usuário)` | Encerra as turmas e fecha as situações | cursor + transação; só Coordenador |
 
-Além do mínimo: a matrícula só entra em turma `Aberta` e recusa matrícula repetida;
-notas só se lançam em turma `Aberta`.
+Além do mínimo: a matrícula só entra em turma `Aberta`, recusa matrícula repetida na
+mesma turma e recusa quem já foi `Aprovado` na disciplina, em qualquer turma (quem reprovou
+pode repetir); as notas só se lançam em turma `Aberta`, e uma nota já lançada não pode ser
+apagada com `NULL`, só trocada por outro valor (lançar só a N1 onde ainda não há nota
+continua permitido).
 
 ### sp_matricular_aluno
 Confere, nesta ordem: usuário, aluno, turma, aluno `Ativo` (RN09), turma `Aberta`,
@@ -53,10 +56,10 @@ antes do `START TRANSACTION`, então um Secretário barrado não mexe em nada.
 
 Rode o arquivo inteiro depois do `03_dados.sql`. Os testes que devem falhar rodam dentro
 da `sp_teste_erro`, que captura o erro, então não é preciso desligar o "parar no erro" do
-Workbench. Os testes 1 a 10 rodam numa transação que termina em `ROLLBACK`, e o 11 apaga o
+Workbench. Os testes 1 a 10 e 12 rodam numa transação que termina em `ROLLBACK`, e o 11 apaga o
 que cria: a massa de dados continua intacta. No fim sai a tabela esperado × obtido.
 
-Resultado da execução em um MySQL 8.0.46 limpo: **35 verificações, 35 OK, 0 falhas**.
+Resultado da execução em um MySQL 8.0.46 limpo: **39 verificações, 39 OK, 0 falhas**.
 
 | Teste | Cenário | Esperado | Obtido |
 |---|---|---|---|
@@ -71,6 +74,7 @@ Resultado da execução em um MySQL 8.0.46 limpo: **35 verificações, 35 OK, 0 
 | 9 | Consultar as 3 views | 35, 5 e 5 linhas | 35, 5 e 5 linhas |
 | 10 | Secretário fecha o semestre | falha | `Apenas o Coordenador pode fechar o semestre.` |
 | 11 | Fechar semestre com e sem notas completas | recusa com ROLLBACK; depois encerra | nada muda na recusa; no sucesso a turma vira `Encerrada` e `Em Exame` vira `Reprovado por Nota` |
+| 12 | Aluno aprovado repete a disciplina; aluno reprovado repete; apagar nota com `NULL`; lançar só a N1 | recusa; aceita; recusa; aceita | `Aluno já foi aprovado nesta disciplina.`; matrícula criada; `Não é possível apagar uma nota já lançada: informe o novo valor.`; N1 = 7,00 |
 
 ## 4. Principais dificuldades e soluções
 
