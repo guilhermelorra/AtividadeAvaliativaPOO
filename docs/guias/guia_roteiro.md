@@ -11,6 +11,8 @@ A apresentação segue os slides de `apresentacao/SGA_apresentacao.pptx` (20 sli
 | 16 a 18 | Leo | Interface, login e controle de acesso | 3 min |
 | 19 e 20 | O grupo | Roteiro da demonstração e a demonstração ao vivo | 4 min |
 
+**Dois formatos dos slides.** O arquivo `apresentacao/SGA_apresentacao.pptx` é o tradicional. O `apresentacao/SGA_apresentacao.html` é a versão interativa: abra no Chrome, aperte `F` para tela cheia e avance com as setas. No slide do modelo, passe o mouse nas tabelas e clique para dar zoom, ou clique em "Explicar as relações" e avance com a seta. Há também um simulador da situação do aluno, o fluxo dos triggers, os cartões que viram e a troca de perfil. A tecla `G` mostra a lista de slides e `Esc` sai do modo guiado.
+
 Regras de ouro para a fala:
 
 - Quem termina diz o nome do próximo ("agora o Diego mostra como o banco calcula as notas"). A troca fica natural.
@@ -35,6 +37,8 @@ Comandos do passo 3, no PowerShell, trocando pela senha do seu MySQL:
 $env:SGA_DB_USER = "root"
 $env:SGA_DB_PASSWORD = "a-senha-do-seu-mysql"
 ```
+
+Atalho para ensaiar: o script `ensaio\ensaio.ps1` faz os passos 1 a 6 sozinho e depois mostra o roteiro da demonstração, um passo por vez. Rode no PowerShell, na raiz do projeto: `powershell -ExecutionPolicy Bypass -File ensaio\ensaio.ps1`. Ele pede a senha do MySQL (não grava), recria o banco com o `SGA_completo.sql`, compila e abre o app. Se o MySQL não estiver na porta 3306, acrescente `-Porta 3307` (ou a porta que usar). Com `-SoPreparar` ele só recria o banco e compila.
 
 # 3. Logins de teste
 

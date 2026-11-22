@@ -44,3 +44,9 @@ node gerar_slides.js
 ```
 
 **Atenção:** isso sobrescreve o `SGA_apresentacao.pptx`. Só rode se ninguém tiver editado os slides no PowerPoint, ou o trabalho se perde.
+
+## Versão interativa (HTML)
+
+`SGA_apresentacao.html` é a mesma apresentação em um arquivo só, para abrir em qualquer navegador (sem internet). Tem diagrama das tabelas com zoom e explicação de cada relação, simulador da situação do aluno, fluxo dos triggers e troca de perfil. Atalhos: setas para navegar, `F` tela cheia, `G` lista de slides, `Esc` sai do modo guiado.
+
+Para regenerar depois de mudar o conteúdo: edite `html/template.html` e rode `python apresentacao/gerar_html.py` (precisa do Python com a biblioteca Pillow). O diagrama é desenhado por esse script a partir do modelo de dados, e os prints vêm de `relatorio/img/telas`.
