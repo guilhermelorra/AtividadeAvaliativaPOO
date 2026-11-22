@@ -1,6 +1,6 @@
 # Casos de teste da interface
 
-Os testes abaixo foram executados na própria aplicação, logada com cada perfil, sobre a massa de dados do `03_dados.sql` (banco recriado do zero antes da execução). As mensagens de erro vêm do banco: a interface apenas as exibe. Os testes das regras de negócio no próprio banco estão na seção anterior (`04_testes.sql`, 35 verificações, 35 OK).
+Os testes abaixo foram executados na própria aplicação, logada com cada perfil, sobre a massa de dados do `03_dados.sql` (banco recriado do zero antes da execução). As mensagens de erro vêm do banco: a interface apenas as exibe. Os testes das regras de negócio no próprio banco estão na seção anterior (`04_testes.sql`, 39 verificações, 39 OK).
 
 ## Acesso e perfis
 

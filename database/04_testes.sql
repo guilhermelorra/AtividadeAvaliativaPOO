@@ -12,7 +12,7 @@
 -- sai uma tabela teste | esperado | obtido | resultado (OK ou
 -- FALHOU). Essa tabela é a evidência para o relatório.
 --
--- Não suja a massa de dados: os testes 1 a 10 rodam numa transação que
+-- Não suja a massa de dados: os testes 1 a 10 e 12 rodam numa transação que
 -- termina em ROLLBACK, e o teste 11 apaga o que criou. Só os contadores
 -- de AUTO_INCREMENT avançam. As procedures auxiliares (sp_teste_*) são
 -- apagadas no fim.
@@ -30,6 +30,7 @@
 -- Extras do grupo:
 --   10 Secretário tentando fechar o semestre
 --   11 fechamento de semestre com sucesso e com ROLLBACK
+--   12 matrícula em disciplina já aprovada e nota já lançada não se apaga
 -- ============================================================
 
 USE sga_fbi;
@@ -237,7 +238,41 @@ CALL sp_teste_erro('T10: Secretário fechando o semestre',
     'CALL sp_fechar_semestre(''2026.2'', 3)',
     'Apenas o Coordenador');
 
--- Desfaz tudo o que os testes 1 a 10 alteraram.
+-- ============================================================
+-- TESTE 12 (extra): duas travas de integridade
+--   a) quem já foi Aprovado numa disciplina não se matricula de novo
+--      nela, mas quem reprovou pode repetir;
+--   b) uma nota já lançada não pode ser apagada (NULL), mas dá para
+--      lançar só a N1 numa matrícula que ainda não tem notas.
+-- A turma de Lógica da massa está encerrada, então o teste cria uma
+-- turma aberta da mesma disciplina (desfeita pelo ROLLBACK).
+-- ============================================================
+INSERT INTO turma (id_disciplina, id_professor, semestre, vagas, total_aulas, status)
+VALUES (1, 1, '2026.2', 5, 80, 'Aberta');
+SET @turma_repete = LAST_INSERT_ID();
+
+-- aluno 1: Aprovado em Lógica (matrícula 1) | aluno 6: Reprovado por Nota
+SET @comando_repete_aprovado = CONCAT('CALL sp_matricular_aluno(1, ', @turma_repete, ', 3)');
+CALL sp_teste_erro('T12a: repetir disciplina em que já foi Aprovado',
+    @comando_repete_aprovado,
+    'já foi aprovado');
+
+CALL sp_matricular_aluno(6, @turma_repete, 3);
+SELECT COUNT(*) INTO @n_repete_reprovado
+  FROM matricula WHERE id_aluno = 6 AND id_turma = @turma_repete;
+CALL sp_teste_igual('T12b: quem reprovou pode repetir a disciplina', '1', @n_repete_reprovado);
+
+-- matrícula 17 (aluno 1, turma 3) já tem N1 = 8,0
+CALL sp_teste_erro('T12c: apagar uma nota já lançada (N1 = NULL)',
+    'CALL sp_lancar_notas(17, NULL, 9.0, 2, 1)',
+    'apagar uma nota');
+
+-- matrícula 22 (aluno 2, turma 4) ainda não tem nenhuma nota
+CALL sp_lancar_notas(22, 7.0, NULL, 0, 1);
+SELECT n1 INTO @n1_so_a_primeira FROM matricula WHERE id_matricula = 22;
+CALL sp_teste_igual('T12d: lançar só a N1 onde ainda não há notas', '7.00', @n1_so_a_primeira);
+
+-- Desfaz tudo o que os testes 1 a 12 alteraram.
 ROLLBACK;
 
 SELECT COUNT(*) INTO @log_depois FROM log_nota WHERE id_matricula = 20;

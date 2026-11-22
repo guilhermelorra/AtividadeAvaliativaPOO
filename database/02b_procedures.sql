@@ -82,13 +82,14 @@ END$$
 --   RN05  a turma não pode passar das vagas (quem barra é o
 --         trg_valida_vagas, que trava a turma e evita corrida na
 --         última vaga)
--- Além do mínimo: turma precisa estar 'Aberta' e o aluno não pode já
--- estar matriculado na turma.
+-- Além do mínimo: turma precisa estar 'Aberta', o aluno não pode já
+-- estar matriculado na turma e não pode se matricular de novo numa
+-- disciplina em que já foi 'Aprovado' (quem reprovou pode repetir).
 --
--- Uso:  CALL sp_matricular_aluno(9, 4, 3);
+-- Uso:  CALL sp_matricular_aluno(10, 4, 3);
 -- Erros (45000): aluno, turma ou usuário inexistente; aluno não
---   'Ativo'; turma encerrada; já matriculado; falta pré-requisito;
---   turma lotada.
+--   'Ativo'; turma encerrada; já matriculado; já aprovado na
+--   disciplina; falta pré-requisito; turma lotada.
 -- ------------------------------------------------------------
 CREATE PROCEDURE sp_matricular_aluno(
     IN p_id_aluno    INT,
@@ -135,6 +136,18 @@ BEGIN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Aluno já matriculado nesta turma.';
     END IF;
 
+    -- Quem já passou na disciplina não se matricula de novo, nem em outra
+    -- turma. Reprovado (por nota ou por falta) pode repetir.
+    IF EXISTS (SELECT 1
+                 FROM matricula m
+                 JOIN turma t ON t.id_turma = m.id_turma
+                WHERE m.id_aluno = p_id_aluno
+                  AND t.id_disciplina = v_id_disciplina
+                  AND m.situacao = 'Aprovado') THEN
+        SIGNAL SQLSTATE '45000'
+           SET MESSAGE_TEXT = 'Aluno já foi aprovado nesta disciplina.';
+    END IF;
+
     SELECT d.nome
       INTO v_faltando
       FROM pre_requisito pr
@@ -165,12 +178,15 @@ END$$
 -- sp_lancar_notas
 -- Grava n1, n2 e faltas da matrícula e o id de quem lançou. A média e
 -- a situação saem do trg_atualiza_situacao, e a alteração vai para o
--- log_nota pelo trg_auditoria_nota. n1 e n2 podem ser NULL (nota ainda
--- não lançada); notas fora de 0 a 10 são barradas pelo CHECK (RN07).
+-- log_nota pelo trg_auditoria_nota. n1 ou n2 podem vir NULL só enquanto
+-- aquela nota ainda não existe (dá para lançar a N1 antes da N2); uma
+-- nota já lançada não pode ser apagada, só trocada por outro valor.
+-- Notas fora de 0 a 10 são barradas pelo CHECK (RN07).
 --
 -- Uso:  CALL sp_lancar_notas(20, 7.0, 8.0, 3, 1);
 -- Erros (45000): usuário não é Coordenador; matrícula inexistente;
---   turma encerrada; faltas em branco ou negativas.
+--   turma encerrada; tentativa de apagar nota já lançada; faltas em
+--   branco ou negativas.
 -- ------------------------------------------------------------
 CREATE PROCEDURE sp_lancar_notas(
     IN p_id_matricula  INT,
@@ -182,6 +198,8 @@ CREATE PROCEDURE sp_lancar_notas(
 BEGIN
     DECLARE v_perfil       VARCHAR(11);
     DECLARE v_status_turma VARCHAR(9);
+    DECLARE v_n1_atual     DECIMAL(4,2);
+    DECLARE v_n2_atual     DECIMAL(4,2);
 
     SELECT perfil INTO v_perfil FROM usuario WHERE id_usuario = p_id_usuario;
     IF v_perfil IS NULL THEN
@@ -192,8 +210,8 @@ BEGIN
            SET MESSAGE_TEXT = 'Apenas o Coordenador pode lançar notas.';
     END IF;
 
-    SELECT t.status
-      INTO v_status_turma
+    SELECT t.status, m.n1, m.n2
+      INTO v_status_turma, v_n1_atual, v_n2_atual
       FROM matricula m
       JOIN turma t ON t.id_turma = m.id_turma
      WHERE m.id_matricula = p_id_matricula;
@@ -203,6 +221,12 @@ BEGIN
     IF v_status_turma COLLATE utf8mb4_bin <> 'Aberta' THEN
         SIGNAL SQLSTATE '45000'
            SET MESSAGE_TEXT = 'Turma encerrada: as notas não podem mais ser alteradas.';
+    END IF;
+
+    IF (p_n1 IS NULL AND v_n1_atual IS NOT NULL)
+       OR (p_n2 IS NULL AND v_n2_atual IS NOT NULL) THEN
+        SIGNAL SQLSTATE '45000'
+           SET MESSAGE_TEXT = 'Não é possível apagar uma nota já lançada: informe o novo valor.';
     END IF;
 
     IF p_faltas IS NULL OR p_faltas < 0 THEN

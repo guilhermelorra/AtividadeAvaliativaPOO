@@ -1,14 +1,14 @@
 # 1. Em um minuto
 
-**A sua parte em uma frase:** você escreveu as **stored procedures**, que são as "portas de entrada" do banco, e o **roteiro de testes** que prova que tudo funciona. São 6 procedures no arquivo `database/02b_procedures.sql` (login, matricular, lançar notas, lançar exame, histórico e fechar semestre) e um script de testes, `database/04_testes.sql`, com 35 verificações.
+**A sua parte em uma frase:** você escreveu as **stored procedures**, que são as "portas de entrada" do banco, e o **roteiro de testes** que prova que tudo funciona. São 6 procedures no arquivo `database/02b_procedures.sql` (login, matricular, lançar notas, lançar exame, histórico e fechar semestre) e um script de testes, `database/04_testes.sql`, com 12 testes e 39 verificações.
 
 **Por que isso importa:** a interface Java não faz nenhum INSERT nem UPDATE. Ela só chama as suas procedures e consulta views. Por isso é nas suas procedures que ficam as regras de quem pode fazer o quê (Secretário ou Coordenador), a validação de pré-requisito, e o fechamento do semestre "tudo ou nada". E os testes mostram ao professor, com resultado esperado contra resultado obtido, que as regras funcionam.
 
 **Roteiro para falar em voz alta (cerca de 1 minuto):**
 
-> Eu fiz as stored procedures do sistema e o roteiro de testes. A interface não escreve direto nas tabelas: ela só chama as minhas procedures. O login recebe o login e o hash SHA-256 da senha e devolve os dados do usuário, nunca a senha, e não diz se errou o login ou a senha. A matrícula confere se o aluno está Ativo, se a turma está aberta, se ele já não está matriculado e se tem aprovação nos pré-requisitos; a regra de vagas é barrada por um trigger do Diego. Lançar notas e lançar exame só o Coordenador pode, e eu não calculo média nem situação nas procedures: só gravo as notas e o trigger faz o resto, para a regra existir em um lugar só. O fechamento de semestre usa um cursor e uma transação: percorre as matrículas e, se alguma estiver sem nota, desfaz tudo com ROLLBACK, então é tudo ou nada. Por fim, escrevi o roteiro de testes: 35 verificações, todas OK, incluindo login errado, turma lotada, sem pré-requisito, aluno trancado, nota 11, reprovação por falta com média 9 e o ROLLBACK do fechamento. Ele não suja a massa de dados e mostra uma tabela de esperado contra obtido.
+> Eu fiz as stored procedures do sistema e o roteiro de testes. A interface não escreve direto nas tabelas: ela só chama as minhas procedures. O login recebe o login e o hash SHA-256 da senha e devolve os dados do usuário, nunca a senha, e não diz se errou o login ou a senha. A matrícula confere se o aluno está Ativo, se a turma está aberta, se ele já não está matriculado, se já não foi aprovado naquela disciplina e se tem aprovação nos pré-requisitos; a regra de vagas é barrada por um trigger do Diego. Lançar notas e lançar exame só o Coordenador pode, uma nota já lançada não pode ser apagada, e eu não calculo média nem situação nas procedures: só gravo as notas e o trigger faz o resto, para a regra existir em um lugar só. O fechamento de semestre usa um cursor e uma transação: percorre as matrículas e, se alguma estiver sem nota, desfaz tudo com ROLLBACK, então é tudo ou nada. Por fim, escrevi o roteiro de testes: 39 verificações, todas OK, incluindo login errado, turma lotada, sem pré-requisito, aluno trancado, nota 11, reprovação por falta com média 9, repetir disciplina já aprovada, apagar nota e o ROLLBACK do fechamento. Ele não suja a massa de dados e mostra uma tabela de esperado contra obtido.
 
-**Números para ter na cabeça:** 6 procedures, 11 testes agrupados em 35 verificações, todas OK. Erros de regra sempre são `SIGNAL SQLSTATE '45000'` com uma mensagem legível.
+**Números para ter na cabeça:** 6 procedures, 12 testes agrupados em 39 verificações, todas OK. Erros de regra sempre são `SIGNAL SQLSTATE '45000'` com uma mensagem legível.
 
 # 2. Palavras que você precisa saber
 
@@ -78,7 +78,7 @@ DELIMITER $$
 
 | Linha | O que faz |
 |-------|-----------|
-| 54 | `DELIMITER $$`: a partir daqui cada procedure termina em `END$$` e não em `;`. O motivo: o corpo da procedure tem vários `;`. A volta ao normal é na linha 400. |
+| 54 | `DELIMITER $$`: a partir daqui cada procedure termina em `END$$` e não em `;`. O motivo: o corpo da procedure tem vários `;`. A volta ao normal é na linha 424. |
 
 ## sp_LoginUsuario (linhas 66 a 75)
 
@@ -121,11 +121,11 @@ END$$
 
 Como a procedure é só um SELECT, quando não há linha compatível o resultado vem **vazio**, e o mesmo vazio aparece se errou o login ou se errou a senha. Isso impede que alguém descubra, tentando, quais logins existem.
 
-## sp_matricular_aluno (linhas 93 a 162)
+## sp_matricular_aluno (linhas 94 a 175)
 
-> Resumo: cria a matrícula e devolve uma linha com o `id_matricula`. RN09: aluno Trancado ou Formado não se matricula. RN06: só com "Aprovado" em todos os pré-requisitos da disciplina. RN05: a turma não pode passar das vagas, e quem barra é o `trg_valida_vagas` do Diego, que trava a turma. Além do mínimo: a turma precisa estar Aberta e o aluno não pode já estar matriculado nela. **Atenção:** o exemplo de uso que está no comentário do arquivo, `CALL sp_matricular_aluno(9, 4, 3)`, não funciona com a massa de dados, porque o aluno 9 já está na turma 4 (dá "Aluno já matriculado nesta turma."). Para uma matrícula que dá certo, use o aluno 10 na turma 4.
+> Resumo: cria a matrícula e devolve uma linha com o `id_matricula`. RN09: aluno Trancado ou Formado não se matricula. RN06: só com "Aprovado" em todos os pré-requisitos da disciplina. RN05: a turma não pode passar das vagas, e quem barra é o `trg_valida_vagas` do Diego, que trava a turma. Além do mínimo: a turma precisa estar Aberta, o aluno não pode já estar matriculado nela e não pode se matricular de novo numa disciplina em que já foi "Aprovado" (quem reprovou pode repetir). O exemplo de uso do comentário, `CALL sp_matricular_aluno(10, 4, 3)`, funciona com a massa de dados. Atenção: o aluno 10 ocupa a última vaga da turma 4; depois dele, qualquer outra matrícula na turma 4 dá "Turma lotada".
 
-### Parâmetros (linhas 93 a 98)
+### Parâmetros (linhas 94 a 99)
 
 ```sql
 CREATE PROCEDURE sp_matricular_aluno(
@@ -138,11 +138,11 @@ BEGIN
 
 | Linha | O que faz |
 |-------|-----------|
-| 93 | Cria a procedure. |
-| 94 a 96 | Três parâmetros de entrada: qual aluno, qual turma e **qual usuário** está fazendo a matrícula (para ficar registrado em `matricula.id_usuario`). |
-| 98 | `BEGIN`. |
+| 94 | Cria a procedure. |
+| 95 a 97 | Três parâmetros de entrada: qual aluno, qual turma e **qual usuário** está fazendo a matrícula (para ficar registrado em `matricula.id_usuario`). |
+| 99 | `BEGIN`. |
 
-### Variáveis (linhas 99 a 103)
+### Variáveis (linhas 100 a 104)
 
 ```sql
     DECLARE v_status_aluno  VARCHAR(8);
@@ -154,12 +154,12 @@ BEGIN
 
 | Linha | O que faz |
 |-------|-----------|
-| 99 e 100 | Variáveis para o status do aluno e o da turma. Os tamanhos 8 e 9 são os das colunas (`Trancado` e `Encerrada` são os maiores valores). |
-| 101 | A disciplina da turma, para procurar os pré-requisitos dela. |
-| 102 | O nome do pré-requisito que está faltando, se houver. |
-| 103 | A mensagem de erro que será montada. |
+| 100 e 101 | Variáveis para o status do aluno e o da turma. Os tamanhos 8 e 9 são os das colunas (`Trancado` e `Encerrada` são os maiores valores). |
+| 102 | A disciplina da turma, para procurar os pré-requisitos dela. |
+| 103 | O nome do pré-requisito que está faltando, se houver. |
+| 104 | A mensagem de erro que será montada. |
 
-### Conferir usuário e aluno (linhas 105 a 112)
+### Conferir usuário e aluno (linhas 106 a 113)
 
 ```sql
     IF NOT EXISTS (SELECT 1 FROM usuario WHERE id_usuario = p_id_usuario) THEN
@@ -174,11 +174,11 @@ BEGIN
 
 | Linha | O que faz |
 |-------|-----------|
-| 105 a 107 | Se **não existe** usuário com esse id, lança o erro "Usuário não encontrado." `NOT EXISTS (SELECT 1 ...)` é o jeito de perguntar "não há nenhuma linha?". |
-| 109 | Busca o status do aluno e guarda em `v_status_aluno`. |
-| 110 a 112 | Se ficou NULL, o aluno não existe: erro "Aluno não encontrado." Como a coluna `status` é `NOT NULL`, NULL só pode significar que o SELECT não achou a linha. Conferir se as coisas existem **primeiro** deixa as mensagens claras e evita comparar com NULL depois. |
+| 106 a 108 | Se **não existe** usuário com esse id, lança o erro "Usuário não encontrado." `NOT EXISTS (SELECT 1 ...)` é o jeito de perguntar "não há nenhuma linha?". |
+| 110 | Busca o status do aluno e guarda em `v_status_aluno`. |
+| 111 a 113 | Se ficou NULL, o aluno não existe: erro "Aluno não encontrado." Como a coluna `status` é `NOT NULL`, NULL só pode significar que o SELECT não achou a linha. Conferir se as coisas existem **primeiro** deixa as mensagens claras e evita comparar com NULL depois. |
 
-### Conferir a turma (linhas 114 a 120)
+### Conferir a turma (linhas 115 a 121)
 
 ```sql
     SELECT status, id_disciplina
@@ -192,10 +192,10 @@ BEGIN
 
 | Linha | O que faz |
 |-------|-----------|
-| 114 a 117 | Busca de uma vez o status da turma e a disciplina dela. |
-| 118 a 120 | Se `v_status_turma` ficou NULL, a turma não existe: "Turma não encontrada." (mesmo raciocínio do aluno: a coluna é `NOT NULL`). |
+| 115 a 118 | Busca de uma vez o status da turma e a disciplina dela. |
+| 119 a 121 | Se `v_status_turma` ficou NULL, a turma não existe: "Turma não encontrada." (mesmo raciocínio do aluno: a coluna é `NOT NULL`). |
 
-### RN09 e turma aberta (linhas 122 a 131)
+### RN09 e turma aberta (linhas 123 a 132)
 
 ```sql
     IF v_status_aluno COLLATE utf8mb4_bin <> 'Ativo' THEN
@@ -212,11 +212,11 @@ BEGIN
 
 | Linha | O que faz |
 |-------|-----------|
-| 122 | Se o status do aluno é diferente de `'Ativo'`, não pode se matricular. O `COLLATE utf8mb4_bin` faz a comparação ser exata, igual ao CHECK da tabela. É a RN09: pega Trancado e Formado de uma vez. |
-| 123 a 125 | Monta a mensagem com o status real, por exemplo "Aluno Trancado não pode se matricular: só alunos Ativos." e lança o erro. |
-| 128 a 131 | Se a turma não está `'Aberta'`, recusa: "Turma encerrada: não aceita novas matrículas." Depois do fechamento do semestre a situação é definitiva. |
+| 123 | Se o status do aluno é diferente de `'Ativo'`, não pode se matricular. O `COLLATE utf8mb4_bin` faz a comparação ser exata, igual ao CHECK da tabela. É a RN09: pega Trancado e Formado de uma vez. |
+| 124 a 126 | Monta a mensagem com o status real, por exemplo "Aluno Trancado não pode se matricular: só alunos Ativos." e lança o erro. |
+| 129 a 132 | Se a turma não está `'Aberta'`, recusa: "Turma encerrada: não aceita novas matrículas." Depois do fechamento do semestre a situação é definitiva. |
 
-### Matrícula repetida (linhas 133 a 136)
+### Matrícula repetida (linhas 134 a 137)
 
 ```sql
     IF EXISTS (SELECT 1 FROM matricula
@@ -227,10 +227,35 @@ BEGIN
 
 | Linha | O que faz |
 |-------|-----------|
-| 133 e 134 | Pergunta se já existe uma matrícula desse aluno nessa turma. |
-| 135 | Se existe, erro "Aluno já matriculado nesta turma." Sem isso, a pessoa veria a mensagem técnica da chave UNIQUE (`id_aluno`, `id_turma`) do DDL. A UNIQUE continua lá como segunda proteção. |
+| 134 e 135 | Pergunta se já existe uma matrícula desse aluno nessa turma. |
+| 136 | Se existe, erro "Aluno já matriculado nesta turma." Sem isso, a pessoa veria a mensagem técnica da chave UNIQUE (`id_aluno`, `id_turma`) do DDL. A UNIQUE continua lá como segunda proteção. |
 
-### RN06: pré-requisitos (linhas 138 a 151)
+### Já aprovado nesta disciplina (linhas 139 a 149)
+
+```sql
+    -- Quem já passou na disciplina não se matricula de novo, nem em outra
+    -- turma. Reprovado (por nota ou por falta) pode repetir.
+    IF EXISTS (SELECT 1
+                 FROM matricula m
+                 JOIN turma t ON t.id_turma = m.id_turma
+                WHERE m.id_aluno = p_id_aluno
+                  AND t.id_disciplina = v_id_disciplina
+                  AND m.situacao = 'Aprovado') THEN
+        SIGNAL SQLSTATE '45000'
+           SET MESSAGE_TEXT = 'Aluno já foi aprovado nesta disciplina.';
+    END IF;
+```
+
+| Linha | O que faz |
+|-------|-----------|
+| 139 e 140 | Comentário: quem já passou na disciplina não se matricula de novo, nem em outra turma. Reprovado (por nota ou por falta) pode repetir. |
+| 141 a 146 | `IF EXISTS (SELECT 1 ...)`: pergunta se existe alguma matrícula **deste aluno** (`m.id_aluno = p_id_aluno`) em **qualquer turma da mesma disciplina** (`t.id_disciplina = v_id_disciplina`, ligando a matrícula à turma pelo JOIN) com situação `'Aprovado'`. Por que olhar a disciplina e não só a turma: a turma onde ele passou é outra (de outro semestre), mas a disciplina é a mesma. A checagem da turma repetida (linhas 134 a 137) não pega esse caso. |
+| 147 e 148 | Se existe, erro "Aluno já foi aprovado nesta disciplina." A procedure para ali e nada é gravado. |
+| 149 | Fecha o IF. |
+
+Por que só `'Aprovado'` impede: quem foi reprovado por nota ou por falta precisa poder refazer a disciplina. A regra olha apenas quem **já passou**; quem ainda está "Cursando" em outra turma da mesma disciplina não é barrado por esta checagem. Ela vem **antes** da dos pré-requisitos, e a mensagem é específica para quem já passou.
+
+### RN06: pré-requisitos (linhas 151 a 164)
 
 ```sql
     SELECT d.nome
@@ -251,15 +276,15 @@ BEGIN
 
 | Linha | O que faz |
 |-------|-----------|
-| 138 e 139 | Vai guardar em `v_faltando` o **nome** da disciplina que falta. |
-| 140 e 141 | Parte da tabela `pre_requisito` e junta com `disciplina` para pegar o nome do requisito. |
-| 142 | Só os pré-requisitos **da disciplina da turma** onde o aluno quer entrar. |
-| 143 a 149 | `AND NOT EXISTS (...)`: fica só o pré-requisito para o qual **não existe** uma matrícula do aluno, em alguma turma daquela disciplina, com situação `'Aprovado'`. Ou seja, descobre quais pré-requisitos o aluno ainda não cumpriu. Só "Aprovado" conta: Cursando, Em Exame e reprovado não valem. |
-| 150 e 151 | `ORDER BY d.nome LIMIT 1`: se faltar mais de um, pega só o primeiro por ordem alfabética, para a mensagem apontar um nome. |
+| 151 e 152 | Vai guardar em `v_faltando` o **nome** da disciplina que falta. |
+| 153 e 154 | Parte da tabela `pre_requisito` e junta com `disciplina` para pegar o nome do requisito. |
+| 155 | Só os pré-requisitos **da disciplina da turma** onde o aluno quer entrar. |
+| 156 a 162 | `AND NOT EXISTS (...)`: fica só o pré-requisito para o qual **não existe** uma matrícula do aluno, em alguma turma daquela disciplina, com situação `'Aprovado'`. Ou seja, descobre quais pré-requisitos o aluno ainda não cumpriu. Só "Aprovado" conta: Cursando, Em Exame e reprovado não valem. |
+| 163 e 164 | `ORDER BY d.nome LIMIT 1`: se faltar mais de um, pega só o primeiro por ordem alfabética, para a mensagem apontar um nome. |
 
 Se o aluno cumpriu todos os pré-requisitos (ou a disciplina não tem nenhum), o SELECT não devolve linha e `v_faltando` continua NULL.
 
-### Recusar quando falta pré-requisito (linhas 152 a 156)
+### Recusar quando falta pré-requisito (linhas 165 a 169)
 
 ```sql
     IF v_faltando IS NOT NULL THEN
@@ -271,10 +296,10 @@ Se o aluno cumpriu todos os pré-requisitos (ou a disciplina não tem nenhum), o
 
 | Linha | O que faz |
 |-------|-----------|
-| 152 | Se `v_faltando` tem um nome, falta pré-requisito. |
-| 153 a 155 | Monta e lança "Falta pré-requisito: o aluno não foi aprovado em Algoritmos." (com o nome real). |
+| 165 | Se `v_faltando` tem um nome, falta pré-requisito. |
+| 166 a 168 | Monta e lança "Falta pré-requisito: o aluno não foi aprovado em Algoritmos." (com o nome real). |
 
-### Gravar e devolver o id (linhas 158 a 162)
+### Gravar e devolver o id (linhas 171 a 175)
 
 ```sql
     INSERT INTO matricula (id_aluno, id_turma, id_usuario)
@@ -286,15 +311,15 @@ END$$
 
 | Linha | O que faz |
 |-------|-----------|
-| 158 e 159 | `INSERT` da matrícula, informando só aluno, turma e usuário. Os outros campos usam os valores padrão da tabela: data de hoje, 0 faltas, situação "Cursando". Neste momento disparam os triggers do Diego: o `trg_valida_vagas` (RN05, recusa se lotada) e o `trg_situacao_inicial` (calcula média e situação). |
-| 161 | `SELECT LAST_INSERT_ID() AS id_matricula` devolve à interface o id da matrícula recém-criada. |
-| 162 | `END$$`. |
+| 171 e 172 | `INSERT` da matrícula, informando só aluno, turma e usuário. Os outros campos usam os valores padrão da tabela: data de hoje, 0 faltas, situação "Cursando". Neste momento disparam os triggers do Diego: o `trg_valida_vagas` (RN05, recusa se lotada) e o `trg_situacao_inicial` (calcula média e situação). |
+| 174 | `SELECT LAST_INSERT_ID() AS id_matricula` devolve à interface o id da matrícula recém-criada. |
+| 175 | `END$$`. |
 
-## sp_lancar_notas (linhas 175 a 219)
+## sp_lancar_notas (linhas 191 a 243)
 
-> Resumo: grava n1, n2 e faltas da matrícula e o id de quem lançou. A média e a situação saem do `trg_atualiza_situacao`, e a alteração vai para o `log_nota` pelo `trg_auditoria_nota`. n1 e n2 podem ser NULL (nota ainda não lançada). Nota fora de 0 a 10 é barrada pelo CHECK (RN07). Só o Coordenador pode.
+> Resumo: grava n1, n2 e faltas da matrícula e o id de quem lançou. A média e a situação saem do `trg_atualiza_situacao`, e a alteração vai para o `log_nota` pelo `trg_auditoria_nota`. n1 ou n2 podem vir NULL **só enquanto aquela nota ainda não existe** (dá para lançar a N1 antes da N2); uma nota já lançada não pode ser apagada, só trocada por outro valor. Nota fora de 0 a 10 é barrada pelo CHECK (RN07). Só o Coordenador pode.
 
-### Parâmetros e variáveis (linhas 175 a 184)
+### Parâmetros e variáveis (linhas 191 a 202)
 
 ```sql
 CREATE PROCEDURE sp_lancar_notas(
@@ -307,15 +332,18 @@ CREATE PROCEDURE sp_lancar_notas(
 BEGIN
     DECLARE v_perfil       VARCHAR(11);
     DECLARE v_status_turma VARCHAR(9);
+    DECLARE v_n1_atual     DECIMAL(4,2);
+    DECLARE v_n2_atual     DECIMAL(4,2);
 ```
 
 | Linha | O que faz |
 |-------|-----------|
-| 175 a 181 | Cinco parâmetros: a matrícula, as duas notas (`DECIMAL(4,2)`), as faltas e o usuário que está lançando. |
-| 182 | `BEGIN`. |
-| 183 e 184 | Variáveis para o perfil do usuário (11 caracteres, o tamanho de `Coordenador`) e o status da turma (9, o tamanho de `Encerrada`). |
+| 191 a 197 | Cinco parâmetros: a matrícula, as duas notas (`DECIMAL(4,2)`), as faltas e o usuário que está lançando. |
+| 198 | `BEGIN`. |
+| 199 e 200 | Variáveis para o perfil do usuário (11 caracteres, o tamanho de `Coordenador`) e o status da turma (9, o tamanho de `Encerrada`). |
+| 201 e 202 | **Novas:** `v_n1_atual` e `v_n2_atual` guardam as notas que a matrícula **já tem**. Existem para comparar "o que está no banco" com "o que está chegando". |
 
-### Só o Coordenador (linhas 186 a 193)
+### Só o Coordenador (linhas 204 a 211)
 
 ```sql
     SELECT perfil INTO v_perfil FROM usuario WHERE id_usuario = p_id_usuario;
@@ -330,15 +358,15 @@ BEGIN
 
 | Linha | O que faz |
 |-------|-----------|
-| 186 | Busca o perfil do usuário que está tentando lançar. |
-| 187 a 189 | Se ficou NULL, o usuário não existe: "Usuário não encontrado." |
-| 190 a 193 | Se o perfil não é exatamente `'Coordenador'`, erro "Apenas o Coordenador pode lançar notas." Esta é a proteção **no banco**: mesmo que alguém chame a procedure direto, sem passar pela tela, o Secretário é barrado. |
+| 204 | Busca o perfil do usuário que está tentando lançar. |
+| 205 a 207 | Se ficou NULL, o usuário não existe: "Usuário não encontrado." |
+| 208 a 211 | Se o perfil não é exatamente `'Coordenador'`, erro "Apenas o Coordenador pode lançar notas." Esta é a proteção **no banco**: mesmo que alguém chame a procedure direto, sem passar pela tela, o Secretário é barrado. |
 
-### Matrícula existe e turma aberta (linhas 195 a 206)
+### Matrícula existe, turma aberta e notas atuais (linhas 213 a 224)
 
 ```sql
-    SELECT t.status
-      INTO v_status_turma
+    SELECT t.status, m.n1, m.n2
+      INTO v_status_turma, v_n1_atual, v_n2_atual
       FROM matricula m
       JOIN turma t ON t.id_turma = m.id_turma
      WHERE m.id_matricula = p_id_matricula;
@@ -353,11 +381,29 @@ BEGIN
 
 | Linha | O que faz |
 |-------|-----------|
-| 195 a 199 | Busca o status da turma a que pertence a matrícula, ligando `matricula` com `turma`. |
-| 200 a 202 | Se ficou NULL, a matrícula não existe: "Matrícula não encontrada." |
-| 203 a 206 | Se a turma não está `'Aberta'`, erro "Turma encerrada: as notas não podem mais ser alteradas." Depois que o semestre é fechado, as notas são definitivas. |
+| 213 a 217 | Busca, ligando `matricula` com `turma`, o status da turma **e também** `m.n1` e `m.n2` (isso é novo: antes só vinha o status). Os três valores vão para `v_status_turma`, `v_n1_atual` e `v_n2_atual`. Uma consulta só serve para as duas checagens. |
+| 218 a 220 | Se `v_status_turma` ficou NULL, a matrícula não existe: "Matrícula não encontrada." O status da turma é `NOT NULL`, então NULL só pode significar "não achou a linha". As notas atuais podem ser NULL de verdade (nota não lançada) e por isso não servem para essa conferência. |
+| 221 a 224 | Se a turma não está `'Aberta'`, erro "Turma encerrada: as notas não podem mais ser alteradas." Depois que o semestre é fechado, as notas são definitivas. |
 
-### Faltas e gravação (linhas 208 a 219)
+### Não apagar nota já lançada (linhas 226 a 230)
+
+```sql
+    IF (p_n1 IS NULL AND v_n1_atual IS NOT NULL)
+       OR (p_n2 IS NULL AND v_n2_atual IS NOT NULL) THEN
+        SIGNAL SQLSTATE '45000'
+           SET MESSAGE_TEXT = 'Não é possível apagar uma nota já lançada: informe o novo valor.';
+    END IF;
+```
+
+| Linha | O que faz |
+|-------|-----------|
+| 226 e 227 | Duas condições ligadas por `OR`. A primeira: o novo `p_n1` está em branco (NULL) **e** já existe um N1 gravado (`v_n1_atual IS NOT NULL`). A segunda: o mesmo para a N2. Se qualquer uma for verdadeira, a pessoa está tentando **apagar** uma nota. |
+| 228 e 229 | Erro "Não é possível apagar uma nota já lançada: informe o novo valor." |
+| 230 | Fecha o IF. |
+
+Por que isso existe: o UPDATE da procedure grava `n1 = p_n1`, e se `p_n1` vier NULL, a nota antiga some. Um clique errado na tela, ou uma chamada direta com NULL, apagaria uma nota e mudaria a situação do aluno. Agora o banco recusa. O que **continua permitido**: lançar só a N1 numa matrícula que ainda não tem nota (o `v_n1_atual` é NULL, então não há nada a apagar) e **trocar** uma nota por outro valor, como corrigir 7,0 para 8,0. O NULL só é recusado quando há nota atual: NULL no lugar de NULL passa.
+
+### Faltas e gravação (linhas 232 a 243)
 
 ```sql
     IF p_faltas IS NULL OR p_faltas < 0 THEN
@@ -376,17 +422,17 @@ END$$
 
 | Linha | O que faz |
 |-------|-----------|
-| 208 a 211 | As faltas são obrigatórias e não podem ser negativas: senão, erro "Informe as faltas (zero ou mais)." Isso é necessário porque a coluna `faltas` é `NOT NULL` e porque a situação depende delas. |
-| 213 a 218 | `UPDATE` da matrícula: grava `n1`, `n2`, `faltas` e também o `id_usuario` de quem lançou. O `id_usuario` **no mesmo UPDATE** é importante: o trigger de auditoria tira daí o nome de quem mudou a nota. A procedure **não grava média nem situação**. O `trg_atualiza_situacao` (BEFORE UPDATE) recalcula as duas, e o `trg_auditoria_nota` (AFTER UPDATE) escreve no `log_nota`. |
-| 219 | `END$$`. |
+| 232 a 235 | As faltas são obrigatórias e não podem ser negativas: senão, erro "Informe as faltas (zero ou mais)." Isso é necessário porque a coluna `faltas` é `NOT NULL` e porque a situação depende delas. |
+| 237 a 242 | `UPDATE` da matrícula: grava `n1`, `n2`, `faltas` e também o `id_usuario` de quem lançou. O `id_usuario` **no mesmo UPDATE** é importante: o trigger de auditoria tira daí o nome de quem mudou a nota. A procedure **não grava média nem situação**. O `trg_atualiza_situacao` (BEFORE UPDATE) recalcula as duas, e o `trg_auditoria_nota` (AFTER UPDATE) escreve no `log_nota`. |
+| 243 | `END$$`. |
 
 Se a nota for 11, o UPDATE é recusado pelo CHECK `ck_matricula_n1` (erro 3819) e nada é gravado.
 
-## sp_lancar_exame (linhas 231 a 268)
+## sp_lancar_exame (linhas 255 a 292)
 
 > Resumo: grava a nota do exame, mas só quando a matrícula está "Em Exame". O resultado final (RN03) sai do `trg_atualiza_situacao`: média final de 5,0 ou mais vira "Aprovado", senão "Reprovado por Nota". Só o Coordenador pode.
 
-### Parâmetros e variáveis (linhas 231 a 239)
+### Parâmetros e variáveis (linhas 255 a 263)
 
 ```sql
 CREATE PROCEDURE sp_lancar_exame(
@@ -402,11 +448,11 @@ BEGIN
 
 | Linha | O que faz |
 |-------|-----------|
-| 231 a 235 | Recebe a matrícula, a nota do exame e o usuário. |
-| 236 | `BEGIN`. |
-| 237 a 239 | Variáveis: perfil, situação atual da matrícula e a mensagem de erro. |
+| 255 a 259 | Recebe a matrícula, a nota do exame e o usuário. |
+| 260 | `BEGIN`. |
+| 261 a 263 | Variáveis: perfil, situação atual da matrícula e a mensagem de erro. |
 
-### Só o Coordenador (linhas 241 a 248)
+### Só o Coordenador (linhas 265 a 272)
 
 ```sql
     SELECT perfil INTO v_perfil FROM usuario WHERE id_usuario = p_id_usuario;
@@ -421,10 +467,10 @@ BEGIN
 
 | Linha | O que faz |
 |-------|-----------|
-| 241 a 244 | Busca o perfil; se NULL, "Usuário não encontrado." |
-| 245 a 248 | Se não é `'Coordenador'`, "Apenas o Coordenador pode lançar exame." |
+| 265 a 268 | Busca o perfil; se NULL, "Usuário não encontrado." |
+| 269 a 272 | Se não é `'Coordenador'`, "Apenas o Coordenador pode lançar exame." |
 
-### A matrícula tem que estar "Em Exame" (linhas 250 a 258)
+### A matrícula tem que estar "Em Exame" (linhas 274 a 282)
 
 ```sql
     SELECT situacao INTO v_situacao FROM matricula WHERE id_matricula = p_id_matricula;
@@ -440,11 +486,11 @@ BEGIN
 
 | Linha | O que faz |
 |-------|-----------|
-| 250 | Busca a situação atual da matrícula. |
-| 251 a 253 | Se NULL, a matrícula não existe: "Matrícula não encontrada." (a coluna `situacao` é `NOT NULL`). |
-| 254 a 258 | Se a situação não é exatamente `'Em Exame'`, erro com a situação real: "Exame só pode ser lançado para matrícula Em Exame; a situação atual é Cursando." Isso impede lançar exame para quem já passou, já reprovou, ou ainda nem tem as duas notas. |
+| 274 | Busca a situação atual da matrícula. |
+| 275 a 277 | Se NULL, a matrícula não existe: "Matrícula não encontrada." (a coluna `situacao` é `NOT NULL`). |
+| 278 a 282 | Se a situação não é exatamente `'Em Exame'`, erro com a situação real: "Exame só pode ser lançado para matrícula Em Exame; a situação atual é Cursando." Isso impede lançar exame para quem já passou, já reprovou, ou ainda nem tem as duas notas. |
 
-### Exame em branco e gravação (linhas 260 a 268)
+### Exame em branco e gravação (linhas 284 a 292)
 
 ```sql
     IF p_exame IS NULL THEN
@@ -460,15 +506,15 @@ END$$
 
 | Linha | O que faz |
 |-------|-----------|
-| 260 a 262 | Se o exame veio NULL, erro "Informe a nota do exame." |
-| 264 a 267 | `UPDATE` que grava só o `exame` e o `id_usuario`. O trigger recalcula a média final como (média parcial + exame) / 2 e define se é Aprovado (5,0 ou mais) ou Reprovado por Nota. O trigger de auditoria registra o exame no log. |
-| 268 | `END$$`. |
+| 284 a 286 | Se o exame veio NULL, erro "Informe a nota do exame." |
+| 288 a 291 | `UPDATE` que grava só o `exame` e o `id_usuario`. O trigger recalcula a média final como (média parcial + exame) / 2 e define se é Aprovado (5,0 ou mais) ou Reprovado por Nota. O trigger de auditoria registra o exame no log. |
+| 292 | `END$$`. |
 
-## sp_historico_aluno (linhas 277 a 288)
+## sp_historico_aluno (linhas 301 a 312)
 
 > Resumo: todas as matrículas do aluno, ordenadas por semestre e disciplina. Dá erro se o aluno não existe.
 
-### Conferir o aluno (linhas 277 a 281)
+### Conferir o aluno (linhas 301 a 305)
 
 ```sql
 CREATE PROCEDURE sp_historico_aluno(IN p_id_aluno INT)
@@ -480,11 +526,11 @@ BEGIN
 
 | Linha | O que faz |
 |-------|-----------|
-| 277 | Procedure com um parâmetro só (o `id_aluno`), na mesma linha. |
-| 278 | `BEGIN`. |
-| 279 a 281 | Se o aluno não existe: "Aluno não encontrado." Sem isso, um id errado devolveria uma tabela vazia, e ficaria igual a "aluno que ainda não cursou nada". |
+| 301 | Procedure com um parâmetro só (o `id_aluno`), na mesma linha. |
+| 302 | `BEGIN`. |
+| 303 a 305 | Se o aluno não existe: "Aluno não encontrado." Sem isso, um id errado devolveria uma tabela vazia, e ficaria igual a "aluno que ainda não cursou nada". |
 
-### Consulta (linhas 283 a 288)
+### Consulta (linhas 307 a 312)
 
 ```sql
     SELECT semestre, disciplina, n1, n2, exame, media_final,
@@ -497,17 +543,17 @@ END$$
 
 | Linha | O que faz |
 |-------|-----------|
-| 283 e 284 | Escolhe as colunas do boletim, incluindo `frequencia`. Não tem `id_aluno` porque a tela já sabe de qual aluno é. |
-| 285 | Lê da **view** `vw_boletim` do Diego, e não das tabelas. A procedure reaproveita o JOIN e a frequência que a view já faz. |
-| 286 | Só as linhas do aluno pedido. |
-| 287 | Ordena por semestre e, dentro dele, pela disciplina. |
-| 288 | `END$$`. |
+| 307 e 308 | Escolhe as colunas do boletim, incluindo `frequencia`. Não tem `id_aluno` porque a tela já sabe de qual aluno é. |
+| 309 | Lê da **view** `vw_boletim` do Diego, e não das tabelas. A procedure reaproveita o JOIN e a frequência que a view já faz. |
+| 310 | Só as linhas do aluno pedido. |
+| 311 | Ordena por semestre e, dentro dele, pela disciplina. |
+| 312 | `END$$`. |
 
-## sp_fechar_semestre (linhas 307 a 398)
+## sp_fechar_semestre (linhas 331 a 422)
 
 > Resumo: encerra as turmas "Aberta" do semestre e fecha a situação de cada matrícula, **tudo ou nada**. "Em Exame" sem exame lançado vira "Reprovado por Nota". "Cursando" (falta N1 ou N2) faz o fechamento ser **recusado** e nada muda (ROLLBACK): é preciso lançar as notas antes. As demais situações já são definitivas. No fim devolve a contagem de matrículas do semestre por situação. As conferências de perfil e de formato vêm **antes** do START TRANSACTION, então um Secretário barrado não mexe em nada. Só o Coordenador pode.
 
-### Parâmetros e variável (linhas 307 a 312)
+### Parâmetros e variável (linhas 331 a 336)
 
 ```sql
 CREATE PROCEDURE sp_fechar_semestre(
@@ -520,11 +566,11 @@ BEGIN
 
 | Linha | O que faz |
 |-------|-----------|
-| 307 a 310 | Recebe o semestre (`CHAR(6)`, no formato `2026.2`) e o usuário. |
-| 311 | `BEGIN` (bloco externo). |
-| 312 | Variável do perfil. |
+| 331 a 334 | Recebe o semestre (`CHAR(6)`, no formato `2026.2`) e o usuário. |
+| 335 | `BEGIN` (bloco externo). |
+| 336 | Variável do perfil. |
 
-### Conferências antes da transação (linhas 314 a 325)
+### Conferências antes da transação (linhas 338 a 349)
 
 ```sql
     SELECT perfil INTO v_perfil FROM usuario WHERE id_usuario = p_id_usuario;
@@ -543,13 +589,13 @@ BEGIN
 
 | Linha | O que faz |
 |-------|-----------|
-| 314 a 317 | Busca o perfil; se NULL, "Usuário não encontrado." |
-| 318 a 321 | Se não é `'Coordenador'`, "Apenas o Coordenador pode fechar o semestre." |
-| 322 a 325 | Se o semestre é NULL ou **não bate** com o padrão `AAAA.S` (quatro dígitos, ponto, 1 ou 2), erro "Semestre inválido: use o formato AAAA.S, por exemplo 2026.2." Isso evita fechar um semestre por engano de digitação. |
+| 338 a 341 | Busca o perfil; se NULL, "Usuário não encontrado." |
+| 342 a 345 | Se não é `'Coordenador'`, "Apenas o Coordenador pode fechar o semestre." |
+| 346 a 349 | Se o semestre é NULL ou **não bate** com o padrão `AAAA.S` (quatro dígitos, ponto, 1 ou 2), erro "Semestre inválido: use o formato AAAA.S, por exemplo 2026.2." Isso evita fechar um semestre por engano de digitação. |
 
 Tudo isso vem **antes** do `START TRANSACTION`. Assim, um Secretário que tenta fechar o semestre é barrado sem abrir transação alguma e sem mexer em nada, e o ROLLBACK do handler (mais abaixo) nunca desfaz trabalho de outra pessoa.
 
-### Bloco interno e variáveis (linhas 327 a 333)
+### Bloco interno e variáveis (linhas 351 a 357)
 
 ```sql
     BEGIN
@@ -563,13 +609,13 @@ Tudo isso vem **antes** do `START TRANSACTION`. Assim, um Secretário que tenta 
 
 | Linha | O que faz |
 |-------|-----------|
-| 327 | `BEGIN` de um **bloco interno**. Por quê: no MySQL, as declarações de cursor e handler precisam vir no começo de um bloco, antes de qualquer comando. Como o bloco externo já executou SELECTs e IFs, abrimos um novo. |
-| 328 | `v_fim`: uma bandeirinha que começa em 0 e vira 1 quando o cursor acaba. |
-| 329 | `v_abertas`: quantas turmas abertas há no semestre. |
-| 330 a 332 | Onde o cursor vai guardar, a cada passo: o id da matrícula, a situação e o nome do aluno. |
-| 333 | A mensagem de erro. |
+| 351 | `BEGIN` de um **bloco interno**. Por quê: no MySQL, as declarações de cursor e handler precisam vir no começo de um bloco, antes de qualquer comando. Como o bloco externo já executou SELECTs e IFs, abrimos um novo. |
+| 352 | `v_fim`: uma bandeirinha que começa em 0 e vira 1 quando o cursor acaba. |
+| 353 | `v_abertas`: quantas turmas abertas há no semestre. |
+| 354 a 356 | Onde o cursor vai guardar, a cada passo: o id da matrícula, a situação e o nome do aluno. |
+| 357 | A mensagem de erro. |
 
-### Declaração do cursor (linhas 335 a 343)
+### Declaração do cursor (linhas 359 a 367)
 
 ```sql
         DECLARE cur_matriculas CURSOR FOR
@@ -585,14 +631,14 @@ Tudo isso vem **antes** do `START TRANSACTION`. Assim, um Secretário que tenta 
 
 | Linha | O que faz |
 |-------|-----------|
-| 335 | `DECLARE cur_matriculas CURSOR FOR`: declara um cursor com este SELECT. Ainda não executa nada. |
-| 336 | O que o cursor devolve a cada linha: id da matrícula, situação e nome do aluno. |
-| 337 a 339 | Liga matrícula, turma e aluno. |
-| 340 e 341 | Só as turmas do semestre pedido que ainda estão `'Aberta'`. |
-| 342 | Só as matrículas "Cursando" ou "Em Exame", que são as únicas que precisam de atenção no fechamento. |
-| 343 | Ordenadas pelo id, para o percurso ser previsível. |
+| 359 | `DECLARE cur_matriculas CURSOR FOR`: declara um cursor com este SELECT. Ainda não executa nada. |
+| 360 | O que o cursor devolve a cada linha: id da matrícula, situação e nome do aluno. |
+| 361 a 363 | Liga matrícula, turma e aluno. |
+| 364 e 365 | Só as turmas do semestre pedido que ainda estão `'Aberta'`. |
+| 366 | Só as matrículas "Cursando" ou "Em Exame", que são as únicas que precisam de atenção no fechamento. |
+| 367 | Ordenadas pelo id, para o percurso ser previsível. |
 
-### Handlers (linhas 345 a 350)
+### Handlers (linhas 369 a 374)
 
 ```sql
         DECLARE CONTINUE HANDLER FOR NOT FOUND SET v_fim = 1;
@@ -605,10 +651,10 @@ Tudo isso vem **antes** do `START TRANSACTION`. Assim, um Secretário que tenta 
 
 | Linha | O que faz |
 |-------|-----------|
-| 345 | `CONTINUE HANDLER FOR NOT FOUND SET v_fim = 1`: quando o FETCH não encontra mais linhas, ele liga a bandeirinha `v_fim` e o programa **continua** de onde estava. É assim que o laço sabe a hora de parar. |
-| 346 a 350 | `EXIT HANDLER FOR SQLEXCEPTION`: se **qualquer erro** acontecer dentro deste bloco (inclusive os SIGNAL que nós mesmos lançamos), ele roda `ROLLBACK` (desfaz tudo da transação) e depois `RESIGNAL` (relança o mesmo erro para quem chamou). Sem o RESIGNAL, o erro seria engolido: a procedure terminaria sem avisar nada, como se tivesse dado certo. |
+| 369 | `CONTINUE HANDLER FOR NOT FOUND SET v_fim = 1`: quando o FETCH não encontra mais linhas, ele liga a bandeirinha `v_fim` e o programa **continua** de onde estava. É assim que o laço sabe a hora de parar. |
+| 370 a 374 | `EXIT HANDLER FOR SQLEXCEPTION`: se **qualquer erro** acontecer dentro deste bloco (inclusive os SIGNAL que nós mesmos lançamos), ele roda `ROLLBACK` (desfaz tudo da transação) e depois `RESIGNAL` (relança o mesmo erro para quem chamou). Sem o RESIGNAL, o erro seria engolido: a procedure terminaria sem avisar nada, como se tivesse dado certo. |
 
-### Abrir a transação e travar as turmas (linhas 352 a 363)
+### Abrir a transação e travar as turmas (linhas 376 a 387)
 
 ```sql
         START TRANSACTION;
@@ -627,11 +673,11 @@ Tudo isso vem **antes** do `START TRANSACTION`. Assim, um Secretário que tenta 
 
 | Linha | O que faz |
 |-------|-----------|
-| 352 | `START TRANSACTION`: começa o pacote "tudo ou nada". |
-| 354 a 359 | Conta as turmas abertas do semestre. O `FOR UPDATE` **trava** essas turmas até o fim da transação, para ninguém mudar o status delas enquanto fechamos. |
-| 360 a 363 | Se não há nenhuma turma aberta (ou o semestre nem existe), erro "Não há turma aberta neste semestre." O handler dá ROLLBACK e relança. É também o que acontece se alguém tentar fechar o mesmo semestre duas vezes. |
+| 376 | `START TRANSACTION`: começa o pacote "tudo ou nada". |
+| 378 a 383 | Conta as turmas abertas do semestre. O `FOR UPDATE` **trava** essas turmas até o fim da transação, para ninguém mudar o status delas enquanto fechamos. |
+| 384 a 387 | Se não há nenhuma turma aberta (ou o semestre nem existe), erro "Não há turma aberta neste semestre." O handler dá ROLLBACK e relança. É também o que acontece se alguém tentar fechar o mesmo semestre duas vezes. |
 
-### Abrir o cursor e ler a primeira linha (linhas 365 a 370)
+### Abrir o cursor e ler a primeira linha (linhas 389 a 394)
 
 ```sql
         OPEN cur_matriculas;
@@ -644,12 +690,12 @@ Tudo isso vem **antes** do `START TRANSACTION`. Assim, um Secretário que tenta 
 
 | Linha | O que faz |
 |-------|-----------|
-| 365 | `OPEN` executa o SELECT do cursor. |
-| 366 | `ler: LOOP` começa um laço com o nome (rótulo) `ler`. |
-| 367 | `FETCH ... INTO`: traz a próxima linha do cursor para as três variáveis. |
-| 368 a 370 | Se `v_fim` virou 1 (acabaram as linhas), `LEAVE ler` sai do laço. |
+| 389 | `OPEN` executa o SELECT do cursor. |
+| 390 | `ler: LOOP` começa um laço com o nome (rótulo) `ler`. |
+| 391 | `FETCH ... INTO`: traz a próxima linha do cursor para as três variáveis. |
+| 392 a 394 | Se `v_fim` virou 1 (acabaram as linhas), `LEAVE ler` sai do laço. |
 
-### Cursando: recusar tudo (linhas 372 a 376)
+### Cursando: recusar tudo (linhas 396 a 400)
 
 ```sql
             IF v_situacao = 'Cursando' THEN
@@ -661,10 +707,10 @@ Tudo isso vem **antes** do `START TRANSACTION`. Assim, um Secretário que tenta 
 
 | Linha | O que faz |
 |-------|-----------|
-| 372 | Se a matrícula está "Cursando", falta N1 ou N2. |
-| 373 a 375 | Monta a mensagem apontando a matrícula e o aluno ("Matrícula 17 (Alice Monteiro) sem N1 ou N2: lance as notas antes de fechar o semestre.") e lança o erro. O handler faz **ROLLBACK de tudo**, inclusive dos "Em Exame" que já tinham sido alterados antes de chegar nessa linha. |
+| 396 | Se a matrícula está "Cursando", falta N1 ou N2. |
+| 397 a 399 | Monta a mensagem apontando a matrícula e o aluno ("Matrícula 17 (Alice Monteiro) sem N1 ou N2: lance as notas antes de fechar o semestre.") e lança o erro. O handler faz **ROLLBACK de tudo**, inclusive dos "Em Exame" que já tinham sido alterados antes de chegar nessa linha. |
 
-### Em Exame sem exame vira reprovado (linhas 378 a 383)
+### Em Exame sem exame vira reprovado (linhas 402 a 407)
 
 ```sql
             UPDATE matricula
@@ -677,11 +723,11 @@ Tudo isso vem **antes** do `START TRANSACTION`. Assim, um Secretário que tenta 
 
 | Linha | O que faz |
 |-------|-----------|
-| 378 a 381 | Se chegou aqui, a matrícula está "Em Exame" (e o exame não foi lançado, senão ela já teria virado Aprovado ou Reprovado). Grava a situação `'Reprovado por Nota'` e o `id_usuario` de quem fechou. O UPDATE mexe **só na situação**; por isso o `trg_atualiza_situacao` não recalcula e respeita o valor. |
-| 382 | `END LOOP` volta para o `LOOP` e busca a próxima linha. |
-| 383 | `CLOSE` libera o cursor quando o laço termina. |
+| 402 a 405 | Se chegou aqui, a matrícula está "Em Exame" (e o exame não foi lançado, senão ela já teria virado Aprovado ou Reprovado). Grava a situação `'Reprovado por Nota'` e o `id_usuario` de quem fechou. O UPDATE mexe **só na situação**; por isso o `trg_atualiza_situacao` não recalcula e respeita o valor. |
+| 406 | `END LOOP` volta para o `LOOP` e busca a próxima linha. |
+| 407 | `CLOSE` libera o cursor quando o laço termina. |
 
-### Encerrar as turmas e confirmar (linhas 385 a 391)
+### Encerrar as turmas e confirmar (linhas 409 a 415)
 
 ```sql
         UPDATE turma
@@ -695,11 +741,11 @@ Tudo isso vem **antes** do `START TRANSACTION`. Assim, um Secretário que tenta 
 
 | Linha | O que faz |
 |-------|-----------|
-| 385 a 388 | Passa o status das turmas abertas do semestre para `'Encerrada'`. Daí em diante, ninguém mais se matricula nem lança nota nelas. |
-| 390 | `COMMIT`: confirma tudo de uma vez (as situações e o encerramento das turmas). |
-| 391 | `END;` fecha o bloco interno. |
+| 409 a 412 | Passa o status das turmas abertas do semestre para `'Encerrada'`. Daí em diante, ninguém mais se matricula nem lança nota nelas. |
+| 414 | `COMMIT`: confirma tudo de uma vez (as situações e o encerramento das turmas). |
+| 415 | `END;` fecha o bloco interno. |
 
-### Resumo final (linhas 393 a 398)
+### Resumo final (linhas 417 a 422)
 
 ```sql
     SELECT situacao, COUNT(*) AS total
@@ -712,10 +758,10 @@ END$$
 
 | Linha | O que faz |
 |-------|-----------|
-| 393 a 397 | Devolve uma tabela com quantas matrículas do semestre há em cada situação (por exemplo "Aprovado 2" e "Reprovado por Nota 1"), lendo da `vw_boletim`. |
-| 398 | `END$$`. |
+| 417 a 421 | Devolve uma tabela com quantas matrículas do semestre há em cada situação (por exemplo "Aprovado 2" e "Reprovado por Nota 1"), lendo da `vw_boletim`. |
+| 422 | `END$$`. |
 
-### Volta do delimitador (linha 400)
+### Volta do delimitador (linha 424)
 
 ```sql
 DELIMITER ;
@@ -723,17 +769,17 @@ DELIMITER ;
 
 | Linha | O que faz |
 |-------|-----------|
-| 400 | `DELIMITER ;` devolve o terminador normal. |
+| 424 | `DELIMITER ;` devolve o terminador normal. |
 
 ## PARTE B: o arquivo 04_testes.sql
 
-## Cabeçalho (linhas 1 a 33)
+## Cabeçalho (linhas 1 a 34)
 
-> O cabeçalho explica como usar: rode o arquivo inteiro. Não precisa desligar o "parar no erro" do Workbench, porque os testes que **devem falhar** rodam por dentro da `sp_teste_erro`, que captura o erro e só registra a mensagem. No final aparece uma tabela com teste, esperado, obtido e resultado (OK ou FALHOU), que é a evidência para o relatório. O script **não suja a massa de dados**: os testes 1 a 10 rodam numa transação que termina em ROLLBACK, e o teste 11 apaga o que criou (só os contadores de AUTO_INCREMENT avançam). As procedures auxiliares são apagadas no fim. Os testes são: 1 login; 2 turma lotada; 3 sem pré-requisito; 4 aluno Trancado e Formado; 5 nota fora do intervalo; 6 notas, exame e situação final; 7 média 9,0 com frequência abaixo de 75%; 8 auditoria; 9 as 3 views; 10 Secretário fechando o semestre (extra); 11 fechamento de semestre com sucesso e com ROLLBACK (extra).
+> O cabeçalho explica como usar: rode o arquivo inteiro. Não precisa desligar o "parar no erro" do Workbench, porque os testes que **devem falhar** rodam por dentro da `sp_teste_erro`, que captura o erro e só registra a mensagem. No final aparece uma tabela com teste, esperado, obtido e resultado (OK ou FALHOU), que é a evidência para o relatório. O script **não suja a massa de dados**: os testes 1 a 10 e 12 rodam numa transação que termina em ROLLBACK, e o teste 11 apaga o que criou (só os contadores de AUTO_INCREMENT avançam). As procedures auxiliares são apagadas no fim. Os testes são: 1 login; 2 turma lotada; 3 sem pré-requisito; 4 aluno Trancado e Formado; 5 nota fora do intervalo; 6 notas, exame e situação final; 7 média 9,0 com frequência abaixo de 75%; 8 auditoria; 9 as 3 views; 10 Secretário fechando o semestre (extra); 11 fechamento de semestre com sucesso e com ROLLBACK (extra); 12 matrícula em disciplina já aprovada e nota já lançada que não se apaga (extra).
 
-## Preparação (linhas 35 a 54)
+## Preparação (linhas 36 a 55)
 
-### USE (linha 35)
+### USE (linha 36)
 
 ```sql
 USE sga_fbi;
@@ -741,9 +787,9 @@ USE sga_fbi;
 
 | Linha | O que faz |
 |-------|-----------|
-| 35 | Escolhe o banco `sga_fbi`. |
+| 36 | Escolhe o banco `sga_fbi`. |
 
-### Tabela de resultados (linhas 42 a 49)
+### Tabela de resultados (linhas 43 a 50)
 
 ```sql
 DROP TEMPORARY TABLE IF EXISTS teste_resultado;
@@ -758,11 +804,11 @@ CREATE TEMPORARY TABLE teste_resultado (
 
 | Linha | O que faz |
 |-------|-----------|
-| 42 | Apaga a tabela temporária de uma execução anterior, se existir. |
-| 43 a 48 | Cria a tabela `teste_resultado` com: ordem (número automático), nome do teste, o que se esperava, o que foi obtido e o resultado (`OK` ou `FALHOU`, no máximo 6 letras). É `TEMPORARY`: só existe nesta conexão e some sozinha. |
-| 49 | `ENGINE = MEMORY`: a tabela fica na memória e **não é transacional**. Por quê: os testes 1 a 10 terminam com `ROLLBACK`. Se a tabela de resultados fosse comum, o ROLLBACK apagaria também os resultados já registrados. Na MEMORY, o ROLLBACK não encosta nela. (Por isso só há colunas VARCHAR: a MEMORY não aceita TEXT.) |
+| 43 | Apaga a tabela temporária de uma execução anterior, se existir. |
+| 44 a 49 | Cria a tabela `teste_resultado` com: ordem (número automático), nome do teste, o que se esperava, o que foi obtido e o resultado (`OK` ou `FALHOU`, no máximo 6 letras). É `TEMPORARY`: só existe nesta conexão e some sozinha. |
+| 50 | `ENGINE = MEMORY`: a tabela fica na memória e **não é transacional**. Por quê: os testes 1 a 10 e 12 terminam com `ROLLBACK`. Se a tabela de resultados fosse comum, o ROLLBACK apagaria também os resultados já registrados. Na MEMORY, o ROLLBACK não encosta nela. (Por isso só há colunas VARCHAR: a MEMORY não aceita TEXT.) |
 
-### Apagar procedures antigas e trocar o delimitador (linhas 51 a 54)
+### Apagar procedures antigas e trocar o delimitador (linhas 52 a 55)
 
 ```sql
 DROP PROCEDURE IF EXISTS sp_teste_erro;
@@ -773,14 +819,14 @@ DELIMITER $$
 
 | Linha | O que faz |
 |-------|-----------|
-| 51 e 52 | Apaga as duas procedures auxiliares dos testes, se existirem. |
-| 54 | `DELIMITER $$` para poder criá-las. |
+| 52 e 53 | Apaga as duas procedures auxiliares dos testes, se existirem. |
+| 55 | `DELIMITER $$` para poder criá-las. |
 
-## sp_teste_erro (linhas 58 a 80)
+## sp_teste_erro (linhas 59 a 81)
 
 > Resumo: executa um comando que **deve falhar** e confere se a mensagem de erro contém o trecho esperado.
 
-### Parâmetros (linhas 58 a 64)
+### Parâmetros (linhas 59 a 65)
 
 ```sql
 CREATE PROCEDURE sp_teste_erro(
@@ -794,10 +840,10 @@ BEGIN
 
 | Linha | O que faz |
 |-------|-----------|
-| 58 a 62 | Recebe três parâmetros: o nome do teste, o **comando como texto** (por exemplo `'CALL sp_matricular_aluno(5, 3, 3)'`) e o trecho de mensagem que se espera. |
-| 64 | `v_msg` começa NULL e guardará a mensagem de erro, se houver. |
+| 59 a 63 | Recebe três parâmetros: o nome do teste, o **comando como texto** (por exemplo `'CALL sp_matricular_aluno(5, 3, 3)'`) e o trecho de mensagem que se espera. |
+| 65 | `v_msg` começa NULL e guardará a mensagem de erro, se houver. |
 
-### Capturar o erro (linhas 66 a 69)
+### Capturar o erro (linhas 67 a 70)
 
 ```sql
     DECLARE CONTINUE HANDLER FOR SQLEXCEPTION
@@ -808,10 +854,10 @@ BEGIN
 
 | Linha | O que faz |
 |-------|-----------|
-| 66 | `CONTINUE HANDLER FOR SQLEXCEPTION`: se qualquer erro acontecer, em vez de interromper o script, executa o bloco abaixo e **continua**. |
-| 68 | `GET DIAGNOSTICS CONDITION 1 v_msg = MESSAGE_TEXT`: lê a mensagem do erro que acabou de acontecer e guarda em `v_msg`. |
+| 67 | `CONTINUE HANDLER FOR SQLEXCEPTION`: se qualquer erro acontecer, em vez de interromper o script, executa o bloco abaixo e **continua**. |
+| 69 | `GET DIAGNOSTICS CONDITION 1 v_msg = MESSAGE_TEXT`: lê a mensagem do erro que acabou de acontecer e guarda em `v_msg`. |
 
-### Executar o comando (linhas 71 a 74)
+### Executar o comando (linhas 72 a 75)
 
 ```sql
     SET @sql_teste = p_comando;
@@ -822,12 +868,12 @@ BEGIN
 
 | Linha | O que faz |
 |-------|-----------|
-| 71 | Guarda o texto do comando numa variável de usuário `@sql_teste`. O `PREPARE` exige um texto literal ou uma variável com `@`, não aceita variável local. |
-| 72 | `PREPARE` transforma o texto em um comando pronto para executar. |
-| 73 | `EXECUTE` roda o comando. Se ele falhar, o handler captura a mensagem e o programa segue para a linha 74. |
-| 74 | `DEALLOCATE PREPARE` libera o comando preparado. |
+| 72 | Guarda o texto do comando numa variável de usuário `@sql_teste`. O `PREPARE` exige um texto literal ou uma variável com `@`, não aceita variável local. |
+| 73 | `PREPARE` transforma o texto em um comando pronto para executar. |
+| 74 | `EXECUTE` roda o comando. Se ele falhar, o handler captura a mensagem e o programa segue para a linha 75. |
+| 75 | `DEALLOCATE PREPARE` libera o comando preparado. |
 
-### Registrar o resultado (linhas 76 a 80)
+### Registrar o resultado (linhas 77 a 81)
 
 ```sql
     INSERT INTO teste_resultado (teste, esperado, obtido, resultado)
@@ -839,16 +885,16 @@ END$$
 
 | Linha | O que faz |
 |-------|-----------|
-| 76 e 77 | Insere uma linha na tabela de resultados com o nome do teste e o que se esperava. |
-| 78 | Em "obtido" vai a mensagem de erro, ou o texto 'o comando NÃO falhou' se `v_msg` ficou NULL. |
-| 79 | `IF(v_msg LIKE CONCAT('%', p_esperado, '%'), 'OK', 'FALHOU')`: se a mensagem **contém** o trecho esperado, `OK`; senão `FALHOU`. Se o comando não falhou, `v_msg` é NULL, o LIKE dá NULL (que o IF trata como falso) e o resultado é `FALHOU`, o que está certo: era para ter falhado. |
-| 80 | `END$$`. |
+| 77 e 78 | Insere uma linha na tabela de resultados com o nome do teste e o que se esperava. |
+| 79 | Em "obtido" vai a mensagem de erro, ou o texto 'o comando NÃO falhou' se `v_msg` ficou NULL. |
+| 80 | `IF(v_msg LIKE CONCAT('%', p_esperado, '%'), 'OK', 'FALHOU')`: se a mensagem **contém** o trecho esperado, `OK`; senão `FALHOU`. Se o comando não falhou, `v_msg` é NULL, o LIKE dá NULL (que o IF trata como falso) e o resultado é `FALHOU`, o que está certo: era para ter falhado. |
+| 81 | `END$$`. |
 
-## sp_teste_igual (linhas 83 a 92)
+## sp_teste_igual (linhas 84 a 93)
 
 > Resumo: compara dois valores como texto (NULL só é igual a NULL).
 
-### Parâmetros (linhas 83 a 88)
+### Parâmetros (linhas 84 a 89)
 
 ```sql
 CREATE PROCEDURE sp_teste_igual(
@@ -861,10 +907,10 @@ BEGIN
 
 | Linha | O que faz |
 |-------|-----------|
-| 83 a 87 | Recebe o nome do teste, o valor esperado e o valor obtido, os dois como texto. |
-| 88 | `BEGIN`. |
+| 84 a 88 | Recebe o nome do teste, o valor esperado e o valor obtido, os dois como texto. |
+| 89 | `BEGIN`. |
 
-### Comparação (linhas 89 a 92)
+### Comparação (linhas 90 a 93)
 
 ```sql
     INSERT INTO teste_resultado (teste, esperado, obtido, resultado)
@@ -875,10 +921,10 @@ END$$
 
 | Linha | O que faz |
 |-------|-----------|
-| 89 a 91 | Insere uma linha na tabela de resultados. `COALESCE(..., 'NULL')` troca NULL pelo texto 'NULL' para aparecer na tabela. `IF(p_esperado <=> p_obtido, 'OK', 'FALHOU')`: o `<=>` compara tratando NULL como valor (NULL é igual a NULL e diferente de qualquer número), e o resultado é `OK` ou `FALHOU`. |
-| 92 | `END$$`. |
+| 90 a 92 | Insere uma linha na tabela de resultados. `COALESCE(..., 'NULL')` troca NULL pelo texto 'NULL' para aparecer na tabela. `IF(p_esperado <=> p_obtido, 'OK', 'FALHOU')`: o `<=>` compara tratando NULL como valor (NULL é igual a NULL e diferente de qualquer número), e o resultado é `OK` ou `FALHOU`. |
+| 93 | `END$$`. |
 
-### Volta do delimitador e início da transação (linhas 94 a 96)
+### Volta do delimitador e início da transação (linhas 95 a 97)
 
 ```sql
 DELIMITER ;
@@ -888,10 +934,10 @@ START TRANSACTION;
 
 | Linha | O que faz |
 |-------|-----------|
-| 94 | `DELIMITER ;` volta ao normal. |
-| 96 | `START TRANSACTION;` abre a transação em que rodam os testes 1 a 10. Foi **depois** de criar as procedures porque `CREATE PROCEDURE` faz commit implícito e fecharia a transação. Tudo que os testes 1 a 10 gravarem será desfeito no `ROLLBACK` da linha 241. |
+| 95 | `DELIMITER ;` volta ao normal. |
+| 97 | `START TRANSACTION;` abre a transação em que rodam os testes 1 a 10 e 12. Foi **depois** de criar as procedures porque `CREATE PROCEDURE` faz commit implícito e fecharia a transação. Tudo que os testes 1 a 10 e 12 gravarem será desfeito no `ROLLBACK` da linha 276. |
 
-## Teste 1: login com senha incorreta e usuário inexistente (linhas 103 a 110)
+## Teste 1: login com senha incorreta e usuário inexistente (linhas 104 a 111)
 
 - **Cenário:** três chamadas da `sp_LoginUsuario`: senha errada, usuário que não existe, e a senha certa.
 - **Esperado:** as duas primeiras devolvem resultado **vazio**; a terceira devolve uma linha (id, nome, e-mail, perfil), sem a senha.
@@ -911,14 +957,14 @@ CALL sp_LoginUsuario('coord.ana', SHA2('Senha@123', 256));
 
 | Linha | O que faz |
 |-------|-----------|
-| 103, 106, 109 | Um `SELECT 'texto' AS teste` antes de cada chamada, só para aparecer o rótulo no resultado do Workbench e dar para saber qual tabela é de qual teste. |
-| 104 | Login correto com a **senha errada**: `SHA2('senhaErrada', 256)` gera o hash do texto errado. Resultado vazio. |
-| 107 | Login que não existe (`ninguem`) com a senha certa. Resultado vazio. |
-| 110 | Login e senha certos (`Senha@123`). Devolve uma linha. |
+| 104, 107, 110 | Um `SELECT 'texto' AS teste` antes de cada chamada, só para aparecer o rótulo no resultado do Workbench e dar para saber qual tabela é de qual teste. |
+| 105 | Login correto com a **senha errada**: `SHA2('senhaErrada', 256)` gera o hash do texto errado. Resultado vazio. |
+| 108 | Login que não existe (`ninguem`) com a senha certa. Resultado vazio. |
+| 111 | Login e senha certos (`Senha@123`). Devolve uma linha. |
 
 Note que o teste usa `SHA2(...)` dentro do próprio SQL para gerar o hash. Na aplicação, quem calcula o hash é o Java, antes de chamar a procedure.
 
-## Teste 2: matrícula em turma lotada, RN05 (linhas 117 a 119)
+## Teste 2: matrícula em turma lotada, RN05 (linhas 118 a 120)
 
 - **Cenário:** a turma 3 (POO) tem 4 vagas e 4 matriculados. O aluno 5 está Ativo e foi aprovado em Lógica (o pré-requisito de POO), então só a falta de vaga pode barrá-lo.
 - **Esperado:** erro contendo "Turma lotada".
@@ -933,11 +979,11 @@ CALL sp_teste_erro('T2: matrícula em turma lotada',
 
 | Linha | O que faz |
 |-------|-----------|
-| 117 | Chama `sp_teste_erro` com o nome do teste. |
-| 118 | O comando que deve falhar, escrito como texto: matricular o aluno 5, na turma 3, pelo usuário 3 (a Secretária Carla). |
-| 119 | O trecho que a mensagem de erro deve conter: `'Turma lotada'`. |
+| 118 | Chama `sp_teste_erro` com o nome do teste. |
+| 119 | O comando que deve falhar, escrito como texto: matricular o aluno 5, na turma 3, pelo usuário 3 (a Secretária Carla). |
+| 120 | O trecho que a mensagem de erro deve conter: `'Turma lotada'`. |
 
-## Teste 3: matrícula sem pré-requisito, RN06 (linhas 126 a 128)
+## Teste 3: matrícula sem pré-requisito, RN06 (linhas 127 a 129)
 
 - **Cenário:** a turma 5 (Estruturas de Dados) exige Algoritmos. O aluno 16 foi "Reprovado por Nota" em Algoritmos, e a turma 5 tem vagas (6 de 8).
 - **Esperado:** erro contendo "Falta pré-requisito".
@@ -952,9 +998,9 @@ CALL sp_teste_erro('T3: matrícula sem pré-requisito',
 
 | Linha | O que faz |
 |-------|-----------|
-| 126 a 128 | Mesmo formato: o comando `CALL sp_matricular_aluno(16, 5, 3)` e o trecho esperado `'Falta pré-requisito'`. |
+| 127 a 129 | Mesmo formato: o comando `CALL sp_matricular_aluno(16, 5, 3)` e o trecho esperado `'Falta pré-requisito'`. |
 
-## Teste 4: aluno Trancado ou Formado, RN09 (linhas 133 a 138)
+## Teste 4: aluno Trancado ou Formado, RN09 (linhas 134 a 139)
 
 - **Cenário:** o aluno 19 está Trancado e o 20 está Formado, ambos tentando entrar na turma 4 (Banco de Dados), que tem vaga e não tem pré-requisito.
 - **Esperado:** dois erros, um contendo "Trancado" e outro "Formado".
@@ -972,10 +1018,10 @@ CALL sp_teste_erro('T4b: matrícula de aluno Formado',
 
 | Linha | O que faz |
 |-------|-----------|
-| 133 a 135 | Teste 4a: matricular o aluno 19 na turma 4; espera-se a palavra `'Trancado'` na mensagem. |
-| 136 a 138 | Teste 4b: o mesmo com o aluno 20; espera-se `'Formado'`. |
+| 134 a 136 | Teste 4a: matricular o aluno 19 na turma 4; espera-se a palavra `'Trancado'` na mensagem. |
+| 137 a 139 | Teste 4b: o mesmo com o aluno 20; espera-se `'Formado'`. |
 
-## Teste 5: nota fora do intervalo, RN07 (linhas 143 a 148)
+## Teste 5: nota fora do intervalo, RN07 (linhas 144 a 149)
 
 - **Cenário:** lançar N1 = 11,0 e, em outro comando, N2 = -1,0 na matrícula 20.
 - **Esperado:** o erro do CHECK, citando `ck_matricula_n1` e `ck_matricula_n2`.
@@ -993,14 +1039,14 @@ CALL sp_teste_erro('T5b: N2 = -1,0 barrada pelo CHECK',
 
 | Linha | O que faz |
 |-------|-----------|
-| 143 a 145 | Teste 5a: `sp_lancar_notas(20, 11.0, 5.0, 0, 1)`, ou seja, matrícula 20, N1 11, N2 5, 0 faltas, usuário 1 (Coordenadora Ana). Espera-se o nome da constraint, `ck_matricula_n1`. |
-| 146 a 148 | Teste 5b: N2 = -1,0, e espera-se `ck_matricula_n2`. |
+| 144 a 146 | Teste 5a: `sp_lancar_notas(20, 11.0, 5.0, 0, 1)`, ou seja, matrícula 20, N1 11, N2 5, 0 faltas, usuário 1 (Coordenadora Ana). Espera-se o nome da constraint, `ck_matricula_n1`. |
+| 147 a 149 | Teste 5b: N2 = -1,0, e espera-se `ck_matricula_n2`. |
 
-## Teste 6: notas, Em Exame, exame, situação final, RN02 e RN03 (linhas 154 a 178)
+## Teste 6: notas, Em Exame, exame, situação final, RN02 e RN03 (linhas 155 a 179)
 
 Este é o teste mais completo da parte acadêmica. Ele tem várias etapas.
 
-### Etapa 6a: a situação inicial (linhas 154 e 155)
+### Etapa 6a: a situação inicial (linha 155 e 156)
 
 - **Cenário:** a matrícula 18 (aluno 2, turma 3) tem N1 = 6,0 e N2 = 7,0, parcial 6,5.
 - **Esperado:** "Em Exame". **Acontece:** "Em Exame" (parcial entre 4,00 e 6,99).
@@ -1012,10 +1058,10 @@ CALL sp_teste_igual('T6a: N1 6,0 e N2 7,0 caem em', 'Em Exame', @situacao_antes)
 
 | Linha | O que faz |
 |-------|-----------|
-| 154 | Busca a situação da matrícula 18 e guarda na variável `@situacao_antes`. |
-| 155 | `sp_teste_igual` compara o esperado `'Em Exame'` com o obtido. |
+| 155 | Busca a situação da matrícula 18 e guarda na variável `@situacao_antes`. |
+| 156 | `sp_teste_igual` compara o esperado `'Em Exame'` com o obtido. |
 
-### Etapas 6b e 6c: exame que não pode ser lançado (linhas 157 a 163)
+### Etapas 6b e 6c: exame que não pode ser lançado (linhas 158 a 164)
 
 - **6b:** exame para a matrícula 17, que está "Cursando" (falta N2). **Esperado:** erro "Exame só pode ser lançado...". **Acontece:** "Exame só pode ser lançado para matrícula Em Exame; a situação atual é Cursando."
 - **6c:** a Secretária Carla (usuário 3) tenta lançar exame na matrícula 18, que **está** Em Exame. **Esperado:** "Apenas o Coordenador". **Acontece:** "Apenas o Coordenador pode lançar exame."
@@ -1033,10 +1079,10 @@ CALL sp_teste_erro('T6c: Secretário não lança exame',
 
 | Linha | O que faz |
 |-------|-----------|
-| 157 a 159 | 6b: `sp_lancar_exame(17, 5.0, 1)`, matrícula 17, exame 5,0, usuário Coordenador. Espera-se `'Exame só pode ser lançado'`. |
-| 161 a 163 | 6c: `sp_lancar_exame(18, 5.0, 3)`, agora com o usuário 3 (Secretário). Espera-se `'Apenas o Coordenador'`. |
+| 158 a 160 | 6b: `sp_lancar_exame(17, 5.0, 1)`, matrícula 17, exame 5,0, usuário Coordenador. Espera-se `'Exame só pode ser lançado'`. |
+| 162 a 164 | 6c: `sp_lancar_exame(18, 5.0, 3)`, agora com o usuário 3 (Secretário). Espera-se `'Apenas o Coordenador'`. |
 
-### Etapas 6d e 6e: exame que aprova (linhas 165 a 169)
+### Etapas 6d e 6e: exame que aprova (linhas 166 a 170)
 
 - **Cenário:** o Coordenador lança exame 5,0 na matrícula 18 (parcial 6,5).
 - **Esperado:** média final (6,5 + 5,0) / 2 = **5,75** e situação "Aprovado" (5,75 é pelo menos 5,0).
@@ -1052,12 +1098,12 @@ CALL sp_teste_igual('T6e: situação final com média 5,75', 'Aprovado', @situac
 
 | Linha | O que faz |
 |-------|-----------|
-| 165 | Lança o exame de verdade, com o usuário 1 (Coordenador). Sem `sp_teste_erro`, porque aqui **não** deve falhar. |
-| 166 e 167 | Lê `media_final` e `situacao` da matrícula e guarda nas variáveis `@media_exame` e `@situacao_exame`. |
-| 168 | Confere a média: esperado `'5.75'`. |
-| 169 | Confere a situação: esperado `'Aprovado'`. |
+| 166 | Lança o exame de verdade, com o usuário 1 (Coordenador). Sem `sp_teste_erro`, porque aqui **não** deve falhar. |
+| 167 e 168 | Lê `media_final` e `situacao` da matrícula e guarda nas variáveis `@media_exame` e `@situacao_exame`. |
+| 169 | Confere a média: esperado `'5.75'`. |
+| 170 | Confere a situação: esperado `'Aprovado'`. |
 
-### Etapas 6f, 6g e 6h: exame que reprova (linhas 171 a 178)
+### Etapas 6f, 6g e 6h: exame que reprova (linhas 172 a 179)
 
 - **Cenário:** matrícula 24 (aluno 4, turma 4): N1 = 5,0 e N2 = 6,0, parcial 5,5, que está Em Exame. O Coordenador lança exame 2,0.
 - **Esperado:** média final (5,5 + 2,0) / 2 = **3,75** e situação "Reprovado por Nota".
@@ -1077,14 +1123,14 @@ CALL sp_teste_igual('T6h: situação final com média 3,75', 'Reprovado por Nota
 
 | Linha | O que faz |
 |-------|-----------|
-| 171 | Comentário que descreve o cenário. |
-| 172 e 173 | Confere que a matrícula 24 começa "Em Exame". |
-| 174 | Lança o exame 2,0. |
-| 175 e 176 | Lê a média e a situação resultantes. |
-| 177 | Confere a média: `'3.75'`. |
-| 178 | Confere a situação: `'Reprovado por Nota'`. |
+| 172 | Comentário que descreve o cenário. |
+| 173 e 174 | Confere que a matrícula 24 começa "Em Exame". |
+| 175 | Lança o exame 2,0. |
+| 176 e 177 | Lê a média e a situação resultantes. |
+| 178 | Confere a média: `'3.75'`. |
+| 179 | Confere a situação: `'Reprovado por Nota'`. |
 
-## Teste 7: média 9,0 com frequência abaixo de 75%, RN04 (linhas 185 a 193)
+## Teste 7: média 9,0 com frequência abaixo de 75%, RN04 (linhas 186 a 194)
 
 - **Cenário:** a matrícula 17 (aluno 1, turma 3, 80 aulas) recebe N1 = 9,0, N2 = 9,0 e 25 faltas. A presença é (80 − 25) / 80 = 68,75%.
 - **Esperado:** média 9,00, frequência 68,75 e situação "Reprovado por Falta".
@@ -1102,11 +1148,11 @@ CALL sp_teste_igual('T7c: situação com média 9,0 e 68,75% de presença', 'Rep
 
 | Linha | O que faz |
 |-------|-----------|
-| 185 | Lança N1 9,0, N2 9,0 e 25 faltas na matrícula 17. |
-| 186 e 187 | Lê média, frequência e situação, desta vez pela `vw_boletim` (que calcula a frequência). |
-| 188 | Confere a média: `'9.00'`. |
-| 189 | Confere a frequência: `'68.75'`. |
-| 190 | Confere a situação: `'Reprovado por Falta'`. |
+| 186 | Lança N1 9,0, N2 9,0 e 25 faltas na matrícula 17. |
+| 187 e 188 | Lê média, frequência e situação, desta vez pela `vw_boletim` (que calcula a frequência). |
+| 189 | Confere a média: `'9.00'`. |
+| 190 | Confere a frequência: `'68.75'`. |
+| 191 | Confere a situação: `'Reprovado por Falta'`. |
 
 ```sql
 SELECT situacao INTO @situacao_t7 FROM matricula WHERE id_matricula = 19;
@@ -1115,10 +1161,10 @@ CALL sp_teste_igual('T7d: cenário da massa (matrícula 19, 9,5 e 9,5)', 'Reprov
 
 | Linha | O que faz |
 |-------|-----------|
-| 192 | Lê a situação da matrícula 19, que já veio assim da massa de dados. |
-| 193 | Confere que é `'Reprovado por Falta'`. Prova que o trigger calcula certo já na inserção (`trg_situacao_inicial`). |
+| 193 | Lê a situação da matrícula 19, que já veio assim da massa de dados. |
+| 194 | Confere que é `'Reprovado por Falta'`. Prova que o trigger calcula certo já na inserção (`trg_situacao_inicial`). |
 
-## Teste 8: alteração de notas gera log_nota, RN08 (linhas 201 a 214)
+## Teste 8: alteração de notas gera log_nota, RN08 (linhas 202 a 215)
 
 - **Cenário:** a matrícula 20 (aluno 4, turma 3) começa sem nota alguma. O Coordenador lança N1 = 7,0, N2 = 8,0 e 0 faltas.
 - **Esperado:** **2** linhas novas no `log_nota`: uma para `n1` (NULL para 7,00) e uma para `n2` (NULL para 8,00), com o usuário 1. As faltas não mudaram (0 para 0), então não geram linha.
@@ -1140,14 +1186,14 @@ CALL sp_teste_igual('T8d: usuário gravado no log (sp_lancar_notas, id 1)', '1',
 
 | Linha | O que faz |
 |-------|-----------|
-| 201 | Conta quantas linhas de log a matrícula 20 já tem, antes (deve ser 0). |
-| 202 | Lança as notas. |
-| 203 e 204 | Em uma consulta só: quantas linhas de log tem agora; o menor `usuario` (todas devem ser o 1); e, usando `SUM` de uma comparação (que vale 1 ou 0), quantas linhas são do campo `n1` com valor antigo NULL e valor novo 7,00, e do campo `n2`, 8,00. |
-| 205 e 206 | `INTO` guarda os resultados em variáveis; a consulta lê só os logs da matrícula 20. |
-| 207 | 8a: o número de linhas novas (agora menos antes) deve ser `'2'`. |
-| 208 | 8b: existe exatamente 1 log do n1 com NULL para 7,00. |
-| 209 | 8c: existe exatamente 1 log do n2 com NULL para 8,00. |
-| 210 | 8d: o usuário gravado no log é o `'1'`. |
+| 202 | Conta quantas linhas de log a matrícula 20 já tem, antes (deve ser 0). |
+| 203 | Lança as notas. |
+| 204 e 205 | Em uma consulta só: quantas linhas de log tem agora; o menor `usuario` (todas devem ser o 1); e, usando `SUM` de uma comparação (que vale 1 ou 0), quantas linhas são do campo `n1` com valor antigo NULL e valor novo 7,00, e do campo `n2`, 8,00. |
+| 206 e 207 | `INTO` guarda os resultados em variáveis; a consulta lê só os logs da matrícula 20. |
+| 208 | 8a: o número de linhas novas (agora menos antes) deve ser `'2'`. |
+| 209 | 8b: existe exatamente 1 log do n1 com NULL para 7,00. |
+| 210 | 8c: existe exatamente 1 log do n2 com NULL para 8,00. |
+| 211 | 8d: o usuário gravado no log é o `'1'`. |
 
 ```sql
 SELECT 'T8: log_nota da matrícula 20' AS teste;
@@ -1157,9 +1203,9 @@ SELECT id_log, id_matricula, campo, valor_antigo, valor_novo, usuario, data_hora
 
 | Linha | O que faz |
 |-------|-----------|
-| 212 a 214 | Mostra as linhas do log da matrícula 20 na tela, como evidência visual para o relatório. |
+| 213 a 215 | Mostra as linhas do log da matrícula 20 na tela, como evidência visual para o relatório. |
 
-## Teste 9: as 3 views (linhas 219 a 231)
+## Teste 9: as 3 views (linhas 220 a 232)
 
 - **Cenário:** consultar `vw_boletim`, `vw_turmas_lotacao` e `vw_desempenho_turma`.
 - **Esperado:** 35 linhas na primeira (uma por matrícula) e 5 em cada uma das outras duas (uma por turma).
@@ -1177,8 +1223,8 @@ CALL sp_teste_igual('T9c: vw_desempenho_turma (1 linha por turma)', '5', @n_dese
 
 | Linha | O que faz |
 |-------|-----------|
-| 219 a 221 | Conta as linhas de cada view e guarda em variáveis. |
-| 222 a 224 | Confere as contagens: `'35'`, `'5'` e `'5'`. |
+| 220 a 222 | Conta as linhas de cada view e guarda em variáveis. |
+| 223 a 225 | Confere as contagens: `'35'`, `'5'` e `'5'`. |
 
 ```sql
 SELECT 'T9a: vw_boletim (aluno 1)' AS teste;
@@ -1191,9 +1237,9 @@ SELECT * FROM vw_desempenho_turma ORDER BY id_turma;
 
 | Linha | O que faz |
 |-------|-----------|
-| 226 a 231 | Mostra o conteúdo das views: o boletim do aluno 1, todas as turmas com lotação e o desempenho de todas as turmas. Cada uma tem um `SELECT` de rótulo antes, para identificar a tabela. |
+| 227 a 232 | Mostra o conteúdo das views: o boletim do aluno 1, todas as turmas com lotação e o desempenho de todas as turmas. Cada uma tem um `SELECT` de rótulo antes, para identificar a tabela. |
 
-## Teste 10 (extra): Secretário tentando fechar o semestre (linhas 236 a 246)
+## Teste 10 (extra): Secretário tentando fechar o semestre (linhas 234 a 239)
 
 - **Cenário:** o usuário 3 (Secretária Carla) tenta `sp_fechar_semestre('2026.2', 3)`.
 - **Esperado:** erro "Apenas o Coordenador".
@@ -1208,11 +1254,125 @@ CALL sp_teste_erro('T10: Secretário fechando o semestre',
 
 | Linha | O que faz |
 |-------|-----------|
-| 236 a 238 | O comando está entre aspas simples, e por isso as aspas dentro dele aparecem **dobradas**: `''2026.2''` vira `'2026.2'` quando o texto é lido. Espera-se `'Apenas o Coordenador'`. |
+| 237 a 239 | O comando está entre aspas simples, e por isso as aspas dentro dele aparecem **dobradas**: `''2026.2''` vira `'2026.2'` quando o texto é lido. Espera-se `'Apenas o Coordenador'`. |
 
-### Desfazer tudo e conferir (linhas 241 a 246)
+## Teste 12 (extra): duas travas de integridade (linhas 241 a 273)
+
+Este teste cobre as duas regras novas das procedures: não repetir disciplina já aprovada, e não apagar nota já lançada. Ele roda **ainda dentro da mesma transação** dos testes 1 a 10, logo antes do ROLLBACK.
+
+### Montar o cenário: uma turma aberta de Lógica (linhas 241 a 252)
+
+- **Por que criar uma turma:** a única turma de Lógica da massa de dados (turma 1) está `Encerrada`, e a `sp_matricular_aluno` recusa turma encerrada **antes** de olhar se o aluno já foi aprovado. Sem uma turma aberta da mesma disciplina, o teste nunca chegaria na regra nova: a mensagem seria "Turma encerrada" e o teste não provaria nada. Por isso o teste cria uma turma aberta de Lógica (disciplina 1, professor 1, semestre 2026.2, 5 vagas).
+- **Por que isso não suja a massa:** o INSERT acontece dentro da transação aberta na linha 97, e o `ROLLBACK` da linha 276 desfaz a turma junto com todo o resto.
 
 ```sql
+-- ============================================================
+-- TESTE 12 (extra): duas travas de integridade
+--   a) quem já foi Aprovado numa disciplina não se matricula de novo
+--      nela, mas quem reprovou pode repetir;
+--   b) uma nota já lançada não pode ser apagada (NULL), mas dá para
+--      lançar só a N1 numa matrícula que ainda não tem notas.
+-- A turma de Lógica da massa está encerrada, então o teste cria uma
+-- turma aberta da mesma disciplina (desfeita pelo ROLLBACK).
+-- ============================================================
+INSERT INTO turma (id_disciplina, id_professor, semestre, vagas, total_aulas, status)
+VALUES (1, 1, '2026.2', 5, 80, 'Aberta');
+SET @turma_repete = LAST_INSERT_ID();
+```
+
+| Linha | O que faz |
+|-------|-----------|
+| 241 a 249 | Comentário que descreve as duas travas e explica por que a turma é criada. |
+| 250 e 251 | Cria a turma de Lógica aberta em 2026.2, com 5 vagas e 80 aulas. |
+| 252 | Guarda o id dela em `@turma_repete` para os comandos seguintes. |
+
+### Teste 12a: repetir disciplina em que já foi aprovado (linhas 254 a 258)
+
+- **Cenário:** o aluno 1 foi Aprovado em Lógica (matrícula 1, turma 1) e tenta se matricular na nova turma aberta de Lógica.
+- **Esperado:** erro contendo "já foi aprovado".
+- **O que acontece:** "Aluno já foi aprovado nesta disciplina."
+- **Por que importa:** prova a regra nova. O aluno está Ativo, a turma está aberta, ele não está matriculado nela e Lógica não tem pré-requisito, então só a regra do "já aprovado" pode barrá-lo.
+
+```sql
+-- aluno 1: Aprovado em Lógica (matrícula 1) | aluno 6: Reprovado por Nota
+SET @comando_repete_aprovado = CONCAT('CALL sp_matricular_aluno(1, ', @turma_repete, ', 3)');
+CALL sp_teste_erro('T12a: repetir disciplina em que já foi Aprovado',
+    @comando_repete_aprovado,
+    'já foi aprovado');
+```
+
+| Linha | O que faz |
+|-------|-----------|
+| 254 | Comentário: aluno 1 é Aprovado em Lógica; aluno 6 é Reprovado por Nota. |
+| 255 | Monta o texto do comando com `CONCAT`, colocando dentro dele o id real da turma criada (`CALL sp_matricular_aluno(1, <id>, 3)`). O id só é conhecido durante o teste. |
+| 256 a 258 | `sp_teste_erro` executa esse comando, que deve falhar, e espera a mensagem com `'já foi aprovado'`. |
+
+### Teste 12b: quem reprovou pode repetir (linhas 260 a 263)
+
+- **Cenário:** o aluno 6 foi Reprovado por Nota em Lógica (matrícula 6, notas 3,0 e 2,5) e se matricula na mesma turma nova.
+- **Esperado:** a matrícula é criada (1 linha do aluno 6 nessa turma).
+- **O que acontece:** a matrícula é criada, sem erro.
+- **Por que importa:** o teste precisa mostrar que a regra **não barra demais**. Reprovar não impede de refazer a disciplina.
+
+```sql
+CALL sp_matricular_aluno(6, @turma_repete, 3);
+SELECT COUNT(*) INTO @n_repete_reprovado
+  FROM matricula WHERE id_aluno = 6 AND id_turma = @turma_repete;
+CALL sp_teste_igual('T12b: quem reprovou pode repetir a disciplina', '1', @n_repete_reprovado);
+```
+
+| Linha | O que faz |
+|-------|-----------|
+| 260 | Chama a matrícula de verdade, sem `sp_teste_erro`, porque aqui **não** deve falhar. |
+| 261 e 262 | Conta quantas matrículas o aluno 6 tem na turma nova. |
+| 263 | Confere que o número é `'1'`. |
+
+### Teste 12c: apagar uma nota já lançada (linhas 265 a 268)
+
+- **Cenário:** a matrícula 17 (aluno 1, turma 3) já tem N1 = 8,0. O Coordenador tenta lançar com N1 em branco (NULL) e N2 = 9,0.
+- **Esperado:** erro contendo "apagar uma nota".
+- **O que acontece:** "Não é possível apagar uma nota já lançada: informe o novo valor."
+- **Por que importa:** prova que o NULL no lugar de uma nota existente é recusado. Nada é gravado (a N2 = 9,0 também não entra, porque o erro cancela a procedure toda).
+
+```sql
+-- matrícula 17 (aluno 1, turma 3) já tem N1 = 8,0
+CALL sp_teste_erro('T12c: apagar uma nota já lançada (N1 = NULL)',
+    'CALL sp_lancar_notas(17, NULL, 9.0, 2, 1)',
+    'apagar uma nota');
+```
+
+| Linha | O que faz |
+|-------|-----------|
+| 265 | Comentário: a matrícula 17 já tem N1 = 8,0. |
+| 266 a 268 | `sp_lancar_notas(17, NULL, 9.0, 2, 1)`: N1 = NULL, N2 = 9,0, 2 faltas, usuário Coordenador. Espera-se `'apagar uma nota'` na mensagem. |
+
+### Teste 12d: lançar só a N1 onde não há notas (linhas 270 a 273)
+
+- **Cenário:** a matrícula 22 (aluno 2, turma 4) ainda não tem nenhuma nota. O Coordenador lança só a N1 = 7,0 e deixa a N2 em branco.
+- **Esperado:** funciona, e a N1 fica gravada como 7,00.
+- **O que acontece:** a N1 fica 7,00 (e a situação continua "Cursando", porque falta a N2).
+- **Por que importa:** de novo, a regra não pode barrar demais. Lançar a primeira nota antes da segunda é o uso normal ao longo do semestre.
+
+```sql
+-- matrícula 22 (aluno 2, turma 4) ainda não tem nenhuma nota
+CALL sp_lancar_notas(22, 7.0, NULL, 0, 1);
+SELECT n1 INTO @n1_so_a_primeira FROM matricula WHERE id_matricula = 22;
+CALL sp_teste_igual('T12d: lançar só a N1 onde ainda não há notas', '7.00', @n1_so_a_primeira);
+```
+
+| Linha | O que faz |
+|-------|-----------|
+| 270 | Comentário: a matrícula 22 não tem nenhuma nota. |
+| 271 | Lança N1 = 7,0 e N2 = NULL, com 0 faltas. Como não há nota atual na N2, o NULL não apaga nada e a procedure aceita. |
+| 272 | Lê a N1 gravada, guardando em `@n1_so_a_primeira`. |
+| 273 | Confere que é `'7.00'`. |
+
+### Desfazer tudo e conferir (linhas 275 a 281)
+
+Agora o `ROLLBACK` desfaz **tudo** que os testes 1 a 10 e 12 fizeram.
+
+```sql
+-- Desfaz tudo o que os testes 1 a 12 alteraram.
 ROLLBACK;
 
 SELECT COUNT(*) INTO @log_depois FROM log_nota WHERE id_matricula = 20;
@@ -1223,16 +1383,17 @@ CALL sp_teste_igual('ROLLBACK: matrícula 18 voltou a Em Exame', 'Em Exame', @si
 
 | Linha | O que faz |
 |-------|-----------|
-| 241 | `ROLLBACK` desfaz tudo que os testes 1 a 10 alteraram: os exames das matrículas 18 e 24, as notas das matrículas 17 e 20 e os logs. A massa de dados volta ao que era. A tabela de resultados não é afetada, porque é MEMORY. |
-| 243 e 244 | Lê quantos logs a matrícula 20 tem agora e a situação da matrícula 18. |
-| 245 | Confere que o log da matrícula 20 voltou a `'0'`. |
-| 246 | Confere que a matrícula 18 voltou a `'Em Exame'` (antes do teste ela estava assim; o exame a tinha mudado para Aprovado). Isso prova que o ROLLBACK funcionou. |
+| 275 | Comentário: desfaz tudo o que os testes 1 a 12 alteraram. |
+| 276 | `ROLLBACK` desfaz tudo que os testes 1 a 10 e 12 alteraram: os exames das matrículas 18 e 24, as notas das matrículas 17, 20 e 22, a turma criada no teste 12 com a matrícula do aluno 6 nela, e os logs. A massa de dados volta ao que era. A tabela de resultados não é afetada, porque é MEMORY. |
+| 278 e 279 | Lê quantos logs a matrícula 20 tem agora e a situação da matrícula 18. |
+| 280 | Confere que o log da matrícula 20 voltou a `'0'`. |
+| 281 | Confere que a matrícula 18 voltou a `'Em Exame'` (antes do teste ela estava assim; o exame a tinha mudado para Aprovado). Isso prova que o ROLLBACK funcionou. |
 
-## Teste 11 (extra): fechamento de semestre (linhas 254 a 300)
+## Teste 11 (extra): fechamento de semestre (linhas 289 a 335)
 
 Este teste fica **fora** da transação acima, porque a `sp_fechar_semestre` abre a própria transação (e o `START TRANSACTION` dela faria commit do que estivesse pendente). Para não encerrar o 2026.2 da massa de dados, o teste usa um semestre fictício, o `2099.1`, com turma e matrículas criadas aqui e apagadas no fim.
 
-### Montar o cenário (linhas 254 a 263)
+### Montar o cenário (linhas 289 a 298)
 
 ```sql
 INSERT INTO turma (id_disciplina, id_professor, semestre, vagas, total_aulas, status)
@@ -1242,8 +1403,8 @@ SET @turma_fecha = LAST_INSERT_ID();
 
 | Linha | O que faz |
 |-------|-----------|
-| 254 e 255 | Cria uma turma nova de Banco de Dados (disciplina 3, professor 4) no semestre `2099.1`, com 10 vagas, 60 aulas, status `'Aberta'`. |
-| 256 | `LAST_INSERT_ID()` pega o id da turma criada e guarda em `@turma_fecha`, para os comandos seguintes usarem. |
+| 289 e 290 | Cria uma turma nova de Banco de Dados (disciplina 3, professor 4) no semestre `2099.1`, com 10 vagas, 60 aulas, status `'Aberta'`. |
+| 291 | `LAST_INSERT_ID()` pega o id da turma criada e guarda em `@turma_fecha`, para os comandos seguintes usarem. |
 
 ```sql
 -- aluno 1: 8,0 e 7,0 (Aprovado) | aluno 2: 5,0 e 6,0 sem exame (Em Exame)
@@ -1256,10 +1417,10 @@ INSERT INTO matricula (id_aluno, id_turma, n1, n2, exame, faltas, id_usuario) VA
 
 | Linha | O que faz |
 |-------|-----------|
-| 258 a 259 | Comentários com o cenário: aluno 1 com 8,0 e 7,0 (Aprovado); aluno 2 com 5,0 e 6,0 sem exame (Em Exame); aluno 3 com 9,0 e sem N2 (Cursando). |
-| 260 a 263 | Insere as três matrículas diretamente na tabela, com as notas e o usuário 3. O `trg_situacao_inicial` calcula média e situação de cada uma ao inserir. |
+| 293 a 294 | Comentários com o cenário: aluno 1 com 8,0 e 7,0 (Aprovado); aluno 2 com 5,0 e 6,0 sem exame (Em Exame); aluno 3 com 9,0 e sem N2 (Cursando). |
+| 295 a 298 | Insere as três matrículas diretamente na tabela, com as notas e o usuário 3. O `trg_situacao_inicial` calcula média e situação de cada uma ao inserir. |
 
-### Teste 11a, 11b e 11c: o fechamento recusado e o ROLLBACK (linhas 265 a 272)
+### Teste 11a, 11b e 11c: o fechamento recusado e o ROLLBACK (linhas 300 a 307)
 
 - **Cenário:** tentar fechar o `2099.1` com o aluno 3 sem a N2.
 - **Esperado:** erro "sem N1 ou N2"; a turma continua `Aberta`; e a matrícula do aluno 2 continua `Em Exame` (mesmo que o cursor já tivesse passado por ela).
@@ -1274,7 +1435,7 @@ CALL sp_teste_erro('T11a: fechar com matrícula sem N2 (Cursando)',
 
 | Linha | O que faz |
 |-------|-----------|
-| 265 a 267 | 11a: tenta `sp_fechar_semestre('2099.1', 1)`; espera-se `'sem N1 ou N2'` na mensagem. |
+| 300 a 302 | 11a: tenta `sp_fechar_semestre('2099.1', 1)`; espera-se `'sem N1 ou N2'` na mensagem. |
 
 ```sql
 SELECT status INTO @status_turma FROM turma WHERE id_turma = @turma_fecha;
@@ -1286,12 +1447,12 @@ CALL sp_teste_igual('T11c: ROLLBACK, o Em Exame não foi alterado', 'Em Exame', 
 
 | Linha | O que faz |
 |-------|-----------|
-| 268 | Lê o status da turma depois do erro. |
-| 269 e 270 | Lê a situação do aluno 2 nessa turma. |
-| 271 | 11b: a turma ainda deve estar `'Aberta'` (o encerramento não aconteceu). |
-| 272 | 11c: o aluno 2 ainda deve estar `'Em Exame'` (o ROLLBACK desfez a mudança). |
+| 303 | Lê o status da turma depois do erro. |
+| 304 e 305 | Lê a situação do aluno 2 nessa turma. |
+| 306 | 11b: a turma ainda deve estar `'Aberta'` (o encerramento não aconteceu). |
+| 307 | 11c: o aluno 2 ainda deve estar `'Em Exame'` (o ROLLBACK desfez a mudança). |
 
-### Corrigir e fechar com sucesso (linhas 274 a 285)
+### Corrigir e fechar com sucesso (linhas 309 a 320)
 
 - **Cenário:** o Coordenador lança N2 = 8,0 para o aluno 3 (nota 9,0 e 8,0 dá 8,50, Aprovado) e tenta fechar de novo.
 - **Esperado:** a turma vira `Encerrada`, o aluno 2 (Em Exame sem exame) vira `Reprovado por Nota`, e o resumo mostra **Aprovado 2 e Reprovado por Nota 1**.
@@ -1305,8 +1466,8 @@ CALL sp_lancar_notas(@matricula_sem_n2, 9.0, 8.0, 0, 1);
 
 | Linha | O que faz |
 |-------|-----------|
-| 274 a 275 | Descobre o id da matrícula do aluno 3 e guarda em `@matricula_sem_n2`. |
-| 276 | Lança as notas 9,0 e 8,0 com 0 faltas, para o aluno 3 deixar de ser "Cursando". |
+| 309 a 310 | Descobre o id da matrícula do aluno 3 e guarda em `@matricula_sem_n2`. |
+| 311 | Lança as notas 9,0 e 8,0 com 0 faltas, para o aluno 3 deixar de ser "Cursando". |
 
 ```sql
 SELECT 'T11: sp_fechar_semestre(2099.1) (esperado: Aprovado 2, Reprovado por Nota 1)' AS teste;
@@ -1315,8 +1476,8 @@ CALL sp_fechar_semestre('2099.1', 1);
 
 | Linha | O que faz |
 |-------|-----------|
-| 278 | Um `SELECT` de rótulo, dizendo o que se espera ver. |
-| 279 | Chama o fechamento, que agora dá certo e devolve a tabela de contagem por situação. |
+| 313 | Um `SELECT` de rótulo, dizendo o que se espera ver. |
+| 314 | Chama o fechamento, que agora dá certo e devolve a tabela de contagem por situação. |
 
 ```sql
 SELECT status INTO @status_turma FROM turma WHERE id_turma = @turma_fecha;
@@ -1328,11 +1489,11 @@ CALL sp_teste_igual('T11e: Em Exame sem exame virou', 'Reprovado por Nota', @sit
 
 | Linha | O que faz |
 |-------|-----------|
-| 281 a 283 | Lê o status da turma e a situação do aluno 2, agora depois do fechamento. |
-| 284 | 11d: a turma deve estar `'Encerrada'`. |
-| 285 | 11e: o aluno 2 deve ter virado `'Reprovado por Nota'`. |
+| 316 a 318 | Lê o status da turma e a situação do aluno 2, agora depois do fechamento. |
+| 319 | 11d: a turma deve estar `'Encerrada'`. |
+| 320 | 11e: o aluno 2 deve ter virado `'Reprovado por Nota'`. |
 
-### Depois do fechamento (linhas 286 a 294)
+### Depois do fechamento (linhas 321 a 329)
 
 - **11f:** lançar nota numa turma que já foi encerrada. **Esperado:** "Turma encerrada". **Acontece:** "Turma encerrada: as notas não podem mais ser alteradas."
 - **11g:** fechar o mesmo semestre de novo. **Esperado:** "Não há turma aberta". **Acontece:** "Não há turma aberta neste semestre."
@@ -1349,8 +1510,8 @@ CALL sp_teste_erro('T11f: lançar nota em turma encerrada',
 
 | Linha | O que faz |
 |-------|-----------|
-| 286 a 288 | Monta, com `CONCAT`, o texto do comando `CALL sp_lancar_notas(<id>, 10.0, 10.0, 0, 1)` para a matrícula do aluno 1, e guarda em `@comando_nota_encerrada`. O id real só é conhecido durante o teste, e o `sp_teste_erro` pede o comando como texto. |
-| 289 a 291 | 11f: executa esse comando, que deve falhar; espera-se `'Turma encerrada'`. |
+| 321 a 323 | Monta, com `CONCAT`, o texto do comando `CALL sp_lancar_notas(<id>, 10.0, 10.0, 0, 1)` para a matrícula do aluno 1, e guarda em `@comando_nota_encerrada`. O id real só é conhecido durante o teste, e o `sp_teste_erro` pede o comando como texto. |
+| 324 a 326 | 11f: executa esse comando, que deve falhar; espera-se `'Turma encerrada'`. |
 
 ```sql
 CALL sp_teste_erro('T11g: fechar de novo o mesmo semestre',
@@ -1360,9 +1521,9 @@ CALL sp_teste_erro('T11g: fechar de novo o mesmo semestre',
 
 | Linha | O que faz |
 |-------|-----------|
-| 292 a 294 | 11g: tenta fechar o `2099.1` outra vez; espera-se `'Não há turma aberta'`. |
+| 327 a 329 | 11g: tenta fechar o `2099.1` outra vez; espera-se `'Não há turma aberta'`. |
 
-### Limpeza do teste 11 (linhas 296 a 300)
+### Limpeza do teste 11 (linhas 331 a 335)
 
 ```sql
 DELETE FROM log_nota
@@ -1373,13 +1534,13 @@ DELETE FROM turma WHERE id_turma = @turma_fecha;
 
 | Linha | O que faz |
 |-------|-----------|
-| 297 e 298 | Apaga os logs das matrículas da turma de ensaio. |
-| 299 | Apaga as matrículas da turma de ensaio. |
-| 300 | Apaga a turma de ensaio. A **ordem** importa: as chaves estrangeiras não deixam apagar uma turma que ainda tem matrícula, nem uma matrícula que ainda tem log. Por isso apaga-se de trás para frente: log, matrícula e depois turma. |
+| 332 e 333 | Apaga os logs das matrículas da turma de ensaio. |
+| 334 | Apaga as matrículas da turma de ensaio. |
+| 335 | Apaga a turma de ensaio. A **ordem** importa: as chaves estrangeiras não deixam apagar uma turma que ainda tem matrícula, nem uma matrícula que ainda tem log. Por isso apaga-se de trás para frente: log, matrícula e depois turma. |
 
-## Resultado final (linhas 302 a 311)
+## Resultado final (linhas 337 a 346)
 
-### A tabela esperado contra obtido (linhas 305 a 307)
+### A tabela esperado contra obtido (linhas 340 a 342)
 
 ```sql
 SELECT teste, esperado, obtido, resultado FROM teste_resultado ORDER BY ordem;
@@ -1389,10 +1550,10 @@ SELECT SUM(resultado = 'OK') AS ok, SUM(resultado = 'FALHOU') AS falhou, COUNT(*
 
 | Linha | O que faz |
 |-------|-----------|
-| 305 | Mostra a tabela com todas as verificações, na ordem em que foram registradas: teste, esperado, obtido, resultado. É a evidência para o relatório. |
-| 306 e 307 | Soma quantas deram `OK`, quantas deram `FALHOU` e o total. O resultado esperado é **35 OK, 0 FALHOU, 35 no total**. |
+| 340 | Mostra a tabela com todas as verificações, na ordem em que foram registradas: teste, esperado, obtido, resultado. É a evidência para o relatório. |
+| 341 e 342 | Soma quantas deram `OK`, quantas deram `FALHOU` e o total. O resultado esperado é **39 OK, 0 FALHOU, 39 no total**. |
 
-### Limpeza final (linhas 309 a 311)
+### Limpeza final (linhas 344 a 346)
 
 ```sql
 DROP TEMPORARY TABLE teste_resultado;
@@ -1402,8 +1563,8 @@ DROP PROCEDURE sp_teste_igual;
 
 | Linha | O que faz |
 |-------|-----------|
-| 309 | Apaga a tabela temporária de resultados. |
-| 310 e 311 | Apaga as duas procedures auxiliares dos testes. O banco fica só com o que é do sistema. |
+| 344 | Apaga a tabela temporária de resultados. |
+| 345 e 346 | Apaga as duas procedures auxiliares dos testes. O banco fica só com o que é do sistema. |
 
 # 4. Como as peças se encaixam
 
@@ -1505,19 +1666,19 @@ Com a `sp_teste_erro`. Ela recebe o comando como texto, executa com `PREPARE` e 
 
 **15. Por que os testes não bagunçam a massa de dados?**
 
-Os testes 1 a 10 rodam dentro de uma transação que termina em `ROLLBACK`, e depois o próprio script confere que o ROLLBACK desfez tudo. O teste 11 usa um semestre fictício (2099.1) com turma e matrículas criadas e apagadas no fim, porque a `sp_fechar_semestre` abre a própria transação e não pode ser desfeita por fora. A tabela de resultados é temporária e do tipo MEMORY para o ROLLBACK não apagar o que ela já registrou. Só os contadores de AUTO_INCREMENT avançam.
+Os testes 1 a 10 e 12 rodam dentro de uma transação que termina em `ROLLBACK`, e depois o próprio script confere que o ROLLBACK desfez tudo. Até a turma que o teste 12 cria some no ROLLBACK. O teste 11 usa um semestre fictício (2099.1) com turma e matrículas criadas e apagadas no fim, porque a `sp_fechar_semestre` abre a própria transação e não pode ser desfeita por fora. A tabela de resultados é temporária e do tipo MEMORY para o ROLLBACK não apagar o que ela já registrou. Só os contadores de AUTO_INCREMENT avançam.
 
 **16. Por que `CREATE PROCEDURE` e `START TRANSACTION` complicam os testes?**
 
-Porque eles fazem **commit implícito**: confirmam tudo que estava pendente. Por isso o roteiro tem duas fases: as procedures auxiliares são criadas **antes** do `START TRANSACTION` do teste (senão a criação fecharia a transação), e o teste da `sp_fechar_semestre` fica **fora** da transação dos testes 1 a 10 (o `START TRANSACTION` dela faria commit do que estivesse pendente).
+Porque eles fazem **commit implícito**: confirmam tudo que estava pendente. Por isso o roteiro tem duas fases: as procedures auxiliares são criadas **antes** do `START TRANSACTION` do teste (senão a criação fecharia a transação), e o teste da `sp_fechar_semestre` fica **fora** da transação dos testes 1 a 10 e 12 (o `START TRANSACTION` dela faria commit do que estivesse pendente).
 
 **17. (Armadilha) A `sp_lancar_notas` aceita NULL. Isso não permite apagar uma nota?**
 
-Permite. n1 e n2 podem ser NULL porque a nota às vezes ainda não foi lançada, mas isso significa que passar NULL para uma nota que já existia a apaga. O que protege é a auditoria: a mudança de 7,00 para NULL vira uma linha em `log_nota` (por causa do `<=>`), com o usuário que fez. Não é impossível, mas é rastreável. Já as faltas são obrigatórias, e a procedure recusa NULL ou negativo.
+Era um problema, e foi corrigido. O UPDATE da procedure grava `n1 = p_n1` e `n2 = p_n2`; se alguém passasse NULL para uma nota que já existia, ela sumia (e a situação do aluno mudava). Agora a procedure busca as notas atuais da matrícula (`v_n1_atual` e `v_n2_atual`, linhas 201 e 202 e 213 a 217) e tem o bloco das linhas 226 a 230: se o novo valor é NULL **e** já existe nota gravada naquele campo, lança o erro "Não é possível apagar uma nota já lançada: informe o novo valor." O que continua permitido é lançar só a N1 numa matrícula que ainda não tem nota (nada a apagar) e trocar uma nota por outro valor. O teste 12c prova a recusa (matrícula 17, que tem N1 = 8,0) e o 12d prova que lançar só a N1 onde não há notas continua funcionando. Mesmo assim, qualquer troca de valor continua indo para o `log_nota`.
 
 **18. (Armadilha) O aluno que já foi aprovado em uma disciplina pode se matricular de novo nela?**
 
-Pelo código atual, sim, em outra turma. A procedure só impede matrícula repetida **na mesma turma** e confere os pré-requisitos; ela não verifica se o aluno já foi aprovado na própria disciplina. É uma limitação conhecida: o enunciado não pede essa regra.
+Antes podia, em outra turma; foi corrigido. A procedure só impedia matrícula repetida na **mesma turma**. Agora, depois dessa checagem, o bloco das linhas 139 a 149 pergunta se o aluno tem alguma matrícula com situação `'Aprovado'` em qualquer turma da mesma disciplina e, se tiver, lança "Aluno já foi aprovado nesta disciplina." Quem foi reprovado (por nota ou por falta) pode repetir normalmente. O teste 12a prova a recusa (aluno 1, aprovado em Lógica) e o 12b prova que o reprovado (aluno 6) consegue se matricular. Para o teste funcionar, ele cria uma turma aberta de Lógica dentro da transação, porque a turma de Lógica da massa está encerrada e seria recusada antes por isso; o ROLLBACK desfaz essa turma.
 
 **19. (Armadilha) O hash que a interface envia não é, na prática, a senha? Alguém com o hash consegue entrar?**
 
@@ -1529,7 +1690,7 @@ Pelo desenho do código, o `SELECT COUNT(*) ... FOR UPDATE` trava as turmas aber
 
 # 6. Passo a passo para mostrar funcionando
 
-Antes de começar, rode o `SGA_completo.sql` no MySQL Workbench. Ele recria o banco do zero, **já executa o `04_testes.sql`** (a tabela de 35 verificações aparece no fim da execução) e deixa a massa de dados intacta. Depois execute `USE sga_fbi;`.
+Antes de começar, rode o `SGA_completo.sql` no MySQL Workbench. Ele recria o banco do zero, **já executa o `04_testes.sql`** (a tabela de 39 verificações aparece no fim da execução) e deixa a massa de dados intacta. Depois execute `USE sga_fbi;`.
 
 **Dicas para o Workbench:** selecione **uma linha ou um bloco** e use Ctrl+Enter para rodar só o que está selecionado. Quando um comando deve dar erro, rode **sozinho**, porque um erro interrompe um script inteiro. Se um erro acontecer dentro de um `START TRANSACTION`, rode `ROLLBACK;` antes de continuar. Os números de `id_matricula` novos podem ser diferentes dos que aparecem aqui; o resto deve ser igual.
 
@@ -1574,7 +1735,7 @@ SELECT id_matricula, id_aluno, id_turma, situacao, id_usuario
 ROLLBACK;
 ```
 
-Esperado: o `CALL` devolve uma coluna `id_matricula` com um número novo (por exemplo 41). A consulta mostra a matrícula com situação **Cursando** e `id_usuario` 3. O `ROLLBACK` desfaz.
+Esperado: o `CALL` devolve uma coluna `id_matricula` com um número novo (por exemplo 41). A consulta mostra a matrícula com situação **Cursando** e `id_usuario` 3. O `ROLLBACK` desfaz. **Importante:** o aluno 10 ocupa a última vaga da turma 4. Se você rodar o `CALL` **sem** o `START TRANSACTION`/`ROLLBACK`, a matrícula fica gravada e a turma 4 passa a ficar lotada (qualquer outro aluno que tentar entrar recebe "Turma lotada"). Se isso acontecer, apague com `DELETE FROM matricula WHERE id_aluno = 10 AND id_turma = 4;`.
 
 Agora os erros, **cada um sozinho**. Mensagens exatas:
 
@@ -1592,6 +1753,23 @@ CALL sp_matricular_aluno(10, 4, 99);  -- Usuário não encontrado.
 ```
 
 No Workbench cada um aparece como **Error Code: 1644.** seguido da mensagem acima. Dica de ordem de apresentação: comece pelo `(5, 3, 3)`, que mostra a regra de vagas vinda do trigger do Diego.
+
+**Disciplina já aprovada (regra nova).** A turma de Lógica da massa está encerrada, e "turma encerrada" é conferida antes. Por isso é preciso criar, dentro de uma transação, uma turma aberta da mesma disciplina (é o que o teste 12 faz). Rode um comando por vez:
+
+```sql
+START TRANSACTION;
+
+INSERT INTO turma (id_disciplina, id_professor, semestre, vagas, total_aulas, status)
+VALUES (1, 1, '2026.2', 5, 80, 'Aberta');
+SET @t12 = LAST_INSERT_ID();
+
+CALL sp_matricular_aluno(1, @t12, 3);   -- Aluno já foi aprovado nesta disciplina.
+CALL sp_matricular_aluno(6, @t12, 3);   -- funciona: devolve o id_matricula (aluno 6 foi reprovado em Lógica)
+
+ROLLBACK;
+```
+
+Esperado: o aluno 1 (aprovado em Lógica) recebe **Error Code: 1644. Aluno já foi aprovado nesta disciplina.** O aluno 6 (reprovado por nota em Lógica) é matriculado e o `CALL` devolve um `id_matricula`. O `ROLLBACK` desfaz a matrícula e a turma criada.
 
 ## Passo 3: lançar notas (Coordenador) e auditoria
 
@@ -1622,10 +1800,22 @@ CALL sp_lancar_notas(999, 7.0, 8.0, 3, 1);     -- Matrícula não encontrada.
 CALL sp_lancar_notas(1, 7.0, 8.0, 3, 1);       -- Turma encerrada: as notas não podem mais ser alteradas.
 CALL sp_lancar_notas(20, 7.0, 8.0, NULL, 1);   -- Informe as faltas (zero ou mais).
 CALL sp_lancar_notas(20, 7.0, 8.0, -1, 1);     -- Informe as faltas (zero ou mais).
+CALL sp_lancar_notas(17, NULL, 9.0, 2, 1);     -- Não é possível apagar uma nota já lançada: informe o novo valor.
 CALL sp_lancar_notas(20, 11.0, 8.0, 0, 1);     -- Check constraint 'ck_matricula_n1' is violated.
 ```
 
-O último é o erro **3819** (do CHECK do Guilherme), não 1644.
+O último é o erro **3819** (do CHECK do Guilherme), não 1644. A matrícula 17 já tem N1 = 8,0, por isso o NULL no lugar dela é recusado.
+
+Para mostrar que lançar **só a N1** onde ainda não há nota continua permitido (a matrícula 22 não tem nenhuma nota), dentro de uma transação:
+
+```sql
+START TRANSACTION;
+CALL sp_lancar_notas(22, 7.0, NULL, 0, 1);
+SELECT n1, n2, media_final, situacao FROM matricula WHERE id_matricula = 22;
+ROLLBACK;
+```
+
+Esperado: N1 7.00, N2 NULL, média NULL e situação **Cursando** (falta a N2). Nenhum erro.
 
 ## Passo 4: lançar exame
 
@@ -1739,7 +1929,7 @@ Se o Workbench reclamar do "safe update mode" nos DELETE, desligue em Edit, Pref
 
 ## Passo 7: o roteiro de testes completo
 
-Para mostrar a tabela de 35 verificações, abra o `database/04_testes.sql` e rode o arquivo **inteiro** (ele não suja a massa de dados). No final aparecem duas tabelas: a lista de verificações (teste, esperado, obtido, resultado) e o resumo **ok = 35, falhou = 0, total = 35**. Pontos para mostrar ao professor: T2 (turma lotada), T4 (Trancado e Formado), T5 (CHECK da nota), T7 (média 9,00 com 68,75% de presença, Reprovado por Falta) e T11a a T11c (o fechamento recusado e o ROLLBACK).
+Para mostrar a tabela de 39 verificações, abra o `database/04_testes.sql` e rode o arquivo **inteiro** (ele não suja a massa de dados). No final aparecem duas tabelas: a lista de verificações (teste, esperado, obtido, resultado) e o resumo **ok = 39, falhou = 0, total = 39**. Pontos para mostrar ao professor: T2 (turma lotada), T4 (Trancado e Formado), T5 (CHECK da nota), T7 (média 9,00 com 68,75% de presença, Reprovado por Falta) e T11a a T11c (o fechamento recusado e o ROLLBACK) e T12 (não repetir disciplina aprovada e não apagar nota).
 
 # 7. Se você só tem 5 minutos antes de apresentar
 
@@ -1747,9 +1937,9 @@ Para mostrar a tabela de 35 verificações, abra o `database/04_testes.sql` e ro
 2. "Toda regra quebrada vira `SIGNAL SQLSTATE '45000'` com mensagem em português, e a interface só mostra essa mensagem."
 3. "A senha é guardada como hash SHA-256 de 64 caracteres; o Java calcula o hash, a senha nunca chega ao banco. Admito que não tem salt."
 4. "O login devolve vazio nos dois casos de erro e nunca devolve a senha; a comparação é `utf8mb4_bin`, por bytes."
-5. "A matrícula confere usuário, aluno Ativo, turma Aberta, matrícula repetida e pré-requisitos Aprovados; as vagas quem barra é o trigger do Diego."
+5. "A matrícula confere usuário, aluno Ativo, turma Aberta, matrícula repetida, disciplina já aprovada e pré-requisitos Aprovados; as vagas quem barra é o trigger do Diego."
 6. "As procedures não calculam média nem situação: gravam as notas e o `id_usuario`, e os triggers calculam e fazem a auditoria. A regra existe em um lugar só."
-7. "Lançar notas, lançar exame e fechar semestre exigem Coordenador; o banco barra mesmo que alguém chame a procedure direto."
+7. "Lançar notas, lançar exame e fechar semestre exigem Coordenador; o banco barra mesmo que alguém chame a procedure direto. E uma nota já lançada não pode ser apagada com NULL."
 8. "O fechamento usa cursor e transação: Em Exame sem exame vira Reprovado por Nota, e se tiver aluno sem nota dá ROLLBACK e nada muda. É tudo ou nada."
 9. "As conferências de perfil vêm antes do `START TRANSACTION`, então quem é barrado não mexe em nada."
-10. "Os testes: 35 verificações, todas OK; os erros são capturados por uma procedure com handler, os testes 1 a 10 terminam em ROLLBACK, e o fechamento é testado num semestre fictício 2099.1."
+10. "Os testes: 12 testes e 39 verificações, todas OK; os erros são capturados por uma procedure com handler, os testes 1 a 10 e 12 terminam em ROLLBACK, e o fechamento é testado num semestre fictício 2099.1."
